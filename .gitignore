@@ -1,0 +1,28 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+.env
+.dev_env/
+
+# Data (optional: decide how you want to handle archive)
+data/bronze/
+data/silver/
+data/gold/
+
+# Logs / outputs
+logs/
+outputs/
