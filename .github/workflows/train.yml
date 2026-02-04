@@ -1,0 +1,21 @@
+# Model Training Workflow
+#
+# Trains and registers models
+
+name: Train Model
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 0 * * 0'  # Weekly
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # TODO: Implement training steps
+      # - name: Pull data with DVC
+      # - name: Train model
+      # - name: Register to MLflow

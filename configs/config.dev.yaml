@@ -1,0 +1,13 @@
+# Development Configuration Overrides
+
+# Override settings for development environment
+debug: true
+
+api:
+  host: "localhost"
+  port: 8000
+  reload: true
+
+database:
+  host: "localhost"
+  port: 5432

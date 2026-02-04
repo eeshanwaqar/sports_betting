@@ -1,0 +1,50 @@
+# Simplified Configuration for EPL Betting App
+
+# Data Paths
+data:
+  raw: "data/raw"
+  processed: "data/processed"
+  features: "data/features"
+  models: "data/models"
+
+# Model Settings
+model:
+  algorithm: "xgboost"  # or 'random_forest', 'gradient_boosting'
+  target: "FTR"  # Full Time Result (H/D/A)
+  test_size: 0.2
+  random_state: 42
+  
+  # XGBoost Parameters
+  params:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+
+# Feature Engineering
+features:
+  # Number of recent matches to consider for form
+  form_window: 5
+  
+  # Number of matches for rolling averages
+  rolling_window: 10
+  
+  # Features to create
+  enabled:
+    - team_form
+    - goals_stats
+    - home_away_performance
+    - head_to_head
+    - league_position
+    - temporal
+
+# API Settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+
+# Source Data
+source:
+  path: "archive/Datasets"
+  pattern: "*.csv"
+  standings: "EPLStandings.csv"

@@ -1,0 +1,30 @@
+# Docker Compose - Local Development
+# 
+# Usage: docker-compose up
+#
+# Services:
+# - api: FastAPI application (port 8000)
+# - mlflow: MLflow tracking server (port 5000)
+# - postgres: PostgreSQL database (port 5432)
+# - redis: Redis cache (port 6379)
+# - chromadb: Vector database (port 8001)
+
+version: "3.8"
+
+services:
+  # TODO: Implement services
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "8000:8000"
+    # depends_on:
+    #   - postgres
+    #   - redis
+    #   - mlflow
+
+# volumes:
+#   postgres-data:
+#   redis-data:
+#   mlflow-data:

@@ -1,0 +1,11 @@
+{
+  "_comment": "Player importance scores (0-1) for injury impact calculation",
+  "example": {
+    "Liverpool": {
+      "Mohamed Salah": 0.92,
+      "Virgil van Dijk": 0.88,
+      "Alisson": 0.85
+    }
+  },
+  "TODO": "Populate with actual player data"
+}

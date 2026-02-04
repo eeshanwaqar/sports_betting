@@ -1,0 +1,19 @@
+# Data Validation Workflow
+#
+# Runs Great Expectations checks
+
+name: Data Validation
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 0 * * *'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # TODO: Implement validation steps
+      # - name: Run Great Expectations

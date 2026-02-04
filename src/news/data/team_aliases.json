@@ -1,0 +1,13 @@
+{
+  "_comment": "Team name normalization mapping",
+  "aliases": {
+    "Man United": "Manchester United",
+    "Man Utd": "Manchester United",
+    "United": "Manchester United",
+    "Man City": "Manchester City",
+    "City": "Manchester City",
+    "Spurs": "Tottenham",
+    "Wolves": "Wolverhampton"
+  },
+  "TODO": "Add complete alias mapping"
+}

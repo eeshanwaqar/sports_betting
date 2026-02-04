@@ -1,0 +1,11 @@
+# MLflow Configuration
+
+tracking:
+  uri: "http://localhost:5000"
+  experiment_name: "epl-predictor"
+
+registry:
+  model_name: "epl-match-predictor"
+
+artifacts:
+  location: "./mlruns"

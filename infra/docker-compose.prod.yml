@@ -1,0 +1,12 @@
+# Docker Compose - Production
+#
+# Usage: docker-compose -f docker-compose.prod.yml up
+
+version: "3.8"
+
+services:
+  # TODO: Implement production services
+  api:
+    image: epl-predictor:latest
+    ports:
+      - "8000:8000"
