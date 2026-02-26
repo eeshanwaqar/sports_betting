@@ -1,50 +1,57 @@
-# Simplified Configuration for EPL Betting App
+# EPL Betting Odds Predictor - Configuration
 
 # Data Paths
 data:
   raw: "data/raw"
   processed: "data/processed"
   features: "data/features"
-  models: "data/models"
-
-# Model Settings
-model:
-  algorithm: "xgboost"  # or 'random_forest', 'gradient_boosting'
-  target: "FTR"  # Full Time Result (H/D/A)
-  test_size: 0.2
-  random_state: 42
-  
-  # XGBoost Parameters
-  params:
-    n_estimators: 100
-    max_depth: 6
-    learning_rate: 0.1
-
-# Feature Engineering
-features:
-  # Number of recent matches to consider for form
-  form_window: 5
-  
-  # Number of matches for rolling averages
-  rolling_window: 10
-  
-  # Features to create
-  enabled:
-    - team_form
-    - goals_stats
-    - home_away_performance
-    - head_to_head
-    - league_position
-    - temporal
-
-# API Settings
-api:
-  host: "0.0.0.0"
-  port: 8000
-  debug: true
+  predictions: "data/predictions"
 
 # Source Data
 source:
   path: "archive/Datasets"
   pattern: "*.csv"
   standings: "EPLStandings.csv"
+
+# Feature Engineering
+features:
+  # Rolling form windows (matches)
+  form_windows: [3, 5, 10]
+
+  # Exponential form decay factor
+  exp_decay: 0.7
+
+  # Venue-specific form window
+  venue_window: 5
+
+  # Head-to-head lookback
+  h2h_window: 10
+
+  # Shooting stats window
+  shooting_window: 10
+
+  # Elo rating system
+  elo:
+    k_factor: 20
+    home_advantage: 100
+    initial_rating: 1500
+
+# Model Settings
+model:
+  algorithm: "gradient_boosting"
+  test_size: 0.2
+  random_state: 42
+  models_dir: "models"
+
+# MLflow Settings
+mlflow:
+  tracking_uri: "sqlite:///mlflow.db"   # SQLite backend (recommended over file store)
+  experiment_name: "epl-match-prediction"
+  registry_name: "epl-predictor"
+  enabled: true
+
+# API Settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true

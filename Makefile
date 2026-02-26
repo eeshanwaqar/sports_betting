@@ -52,3 +52,11 @@ train:
 # API
 api:
 	python scripts/run_api.py
+
+# Run full pipeline (data -> features -> train)
+e2e:
+	python scripts/run_e2e.py
+
+# Run full pipeline and start API + frontend
+e2e-serve:
+	python scripts/run_e2e.py --serve

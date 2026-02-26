@@ -1,0 +1,40 @@
+{
+  "n_trials": 50,
+  "cv_folds": 5,
+  "best_params": {
+    "Logistic Regression": {
+      "lr_C": 0.013115012422652773
+    },
+    "Random Forest": {
+      "rf_n_estimators": 150,
+      "rf_max_depth": 12,
+      "rf_min_samples_leaf": 14,
+      "rf_min_samples_split": 10,
+      "rf_max_features": "log2"
+    },
+    "Gradient Boosting": {
+      "gb_n_estimators": 150,
+      "gb_max_depth": 2,
+      "gb_learning_rate": 0.012585853218539748,
+      "gb_subsample": 0.6679224752755649,
+      "gb_min_samples_leaf": 31
+    },
+    "XGBoost": {
+      "xgb_n_estimators": 150,
+      "xgb_max_depth": 2,
+      "xgb_learning_rate": 0.015580361092676303,
+      "xgb_subsample": 0.6997117059656365,
+      "xgb_colsample_bytree": 0.9697519041315478,
+      "xgb_reg_alpha": 0.0031793167142487922,
+      "xgb_reg_lambda": 0.03274781647423827,
+      "xgb_min_child_weight": 17
+    }
+  },
+  "best_scores": {
+    "Logistic Regression": 0.5281954887218046,
+    "Random Forest": 0.5298872180451127,
+    "Gradient Boosting": 0.5328947368421052,
+    "XGBoost": 0.5328947368421052
+  },
+  "overall_best_model": "Gradient Boosting"
+}

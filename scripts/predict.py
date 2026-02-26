@@ -1,107 +1,87 @@
 """
-Make Predictions - Predict match outcomes
+Make Predictions - Predict match outcomes using the production inference pipeline.
+
+Usage:
+    python scripts/predict.py --home Arsenal --away Chelsea
+    python scripts/predict.py --home "Man City" --away Liverpool --date 2024-03-15
+    python scripts/predict.py --list-teams
 """
 
-import pandas as pd
-import yaml
-import joblib
-import json
-from pathlib import Path
 import argparse
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# Ensure project root is on the path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.utils.config import load_config
+from src.inference.predictor import MatchPredictor
 
 
-def load_model(config):
-    """Load trained model and metadata"""
-    models_dir = Path(config['data']['models'])
-    
-    # Load model
-    model_path = models_dir / 'best_model.pkl'
-    if not model_path.exists():
-        raise FileNotFoundError(f"Model not found at {model_path}. Please train model first!")
-    
-    model = joblib.load(model_path)
-    
-    # Load feature columns
-    features_path = models_dir / 'feature_columns.json'
-    with open(features_path, 'r') as f:
-        feature_cols = json.load(f)
-    
-    return model, feature_cols
+def print_prediction(result: dict) -> None:
+    """Pretty-print a prediction result dict."""
+    probs = result["probabilities"]
+    odds = result["odds"]
+
+    print(f"\n  Predicted outcome: {result['prediction']}")
+    print(f"  Confidence:        {result['confidence']:.1%}")
+    print()
+    print("  Probabilities            Odds")
+    print(f"  Home Win (H): {probs['home_win']:.1%}       {odds['home_win']:.2f}")
+    print(f"  Draw    (D):  {probs['draw']:.1%}       {odds['draw']:.2f}")
+    print(f"  Away Win(A):  {probs['away_win']:.1%}       {odds['away_win']:.2f}")
 
 
-def predict_match(home_team: str, away_team: str, model, feature_cols, config):
-    """
-    Predict outcome for a match
-    
-    Note: This is a simplified version. In reality, you'd need to:
-    1. Load historical data
-    2. Calculate features for the teams
-    3. Create feature vector
-    4. Make prediction
-    
-    For now, this shows the structure.
-    """
-    print(f"\nPredicting: {home_team} vs {away_team}")
-    print("-" * 40)
-    
-    # TODO: Extract features from historical data
-    # For demonstration, we'll create dummy features
-    # In practice, you'd call feature engineering functions here
-    
-    # Create dummy feature vector (zeros for now)
-    features = pd.DataFrame([[0] * len(feature_cols)], columns=feature_cols)
-    
-    # Make prediction
-    probabilities = model.predict_proba(features)[0]
-    prediction = model.predict(features)[0]
-    
-    # Get class labels (H, D, A)
-    classes = model.classes_
-    
-    # Create probability dictionary
-    prob_dict = dict(zip(classes, probabilities))
-    
-    # Convert probabilities to odds (odds = 1 / probability)
-    odds_dict = {k: 1/v if v > 0 else 999 for k, v in prob_dict.items()}
-    
-    # Display results
-    print(f"\nPredicted outcome: {prediction}")
-    print(f"\nProbabilities:")
-    print(f"  Home Win (H): {prob_dict.get('H', 0):.1%}  →  Odds: {odds_dict.get('H', 0):.2f}")
-    print(f"  Draw (D):     {prob_dict.get('D', 0):.1%}  →  Odds: {odds_dict.get('D', 0):.2f}")
-    print(f"  Away Win (A): {prob_dict.get('A', 0):.1%}  →  Odds: {odds_dict.get('A', 0):.2f}")
-    
-    return {
-        'prediction': prediction,
-        'probabilities': prob_dict,
-        'odds': odds_dict
-    }
-
-
-def main():
-    """Main prediction script"""
-    parser = argparse.ArgumentParser(description='Predict EPL match outcome')
-    parser.add_argument('--home', type=str, required=True, help='Home team name')
-    parser.add_argument('--away', type=str, required=True, help='Away team name')
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Predict EPL match outcome")
+    parser.add_argument("--home", type=str, help="Home team name")
+    parser.add_argument("--away", type=str, help="Away team name")
+    parser.add_argument("--date", type=str, default=None, help="Match date (YYYY-MM-DD)")
+    parser.add_argument("--list-teams", action="store_true", help="List available teams")
     args = parser.parse_args()
-    
-    print("="*60)
-    print("EPL BETTING APP - MATCH PREDICTION")
-    print("="*60)
-    
-    # Load config
-    with open('config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-    
-    # Load model
-    print("\nLoading model...")
-    model, feature_cols = load_model(config)
-    print(f"✓ Model loaded ({len(feature_cols)} features)")
-    
-    # Make prediction
-    result = predict_match(args.home, args.away, model, feature_cols, config)
-    
-    print("\n" + "="*60)
+
+    print("=" * 60)
+    print("EPL BETTING ODDS PREDICTOR")
+    print("=" * 60)
+
+    config = load_config()
+    print("\nLoading model and historical data ...")
+    predictor = MatchPredictor(config)
+
+    if args.list_teams:
+        teams = predictor.get_available_teams()
+        print(f"\nAvailable teams ({len(teams)}):")
+        for team in teams:
+            print(f"  - {team}")
+        return
+
+    if not args.home or not args.away:
+        parser.error("--home and --away are required (or use --list-teams)")
+
+    # Validate teams
+    available = predictor.get_available_teams()
+    for team, label in [(args.home, "Home"), (args.away, "Away")]:
+        if team not in available:
+            print(f"\nERROR: {label} team '{team}' not found.")
+            print("Use --list-teams to see available names.")
+            sys.exit(1)
+
+    if args.home == args.away:
+        print("\nERROR: Home and away teams must be different.")
+        sys.exit(1)
+
+    match_date = None
+    if args.date:
+        match_date = datetime.strptime(args.date, "%Y-%m-%d")
+
+    print(f"\nPredicting: {args.home} vs {args.away}")
+    print("-" * 40)
+
+    result = predictor.predict(args.home, args.away, match_date)
+    print_prediction(result)
+
+    print("\n" + "=" * 60)
 
 
 if __name__ == "__main__":

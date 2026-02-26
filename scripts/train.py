@@ -1,193 +1,130 @@
 """
-Train Model - Complete training pipeline
+Train Model - Complete training pipeline with MLflow tracking.
+
+Usage:
+    python scripts/train.py                    # Full pipeline with MLflow
+    python scripts/train.py --no-mlflow        # Train without MLflow tracking
+    python scripts/train.py --config path.yaml # Custom config file
+
+This script orchestrates:
+    1. Load model_ready.csv (output of feature engineering)
+    2. Time-based train/test split
+    3. Train multiple models (LR, RF, GB, XGB)
+    4. Evaluate with cross-validation
+    5. Log everything to MLflow (params, metrics, artifacts)
+    6. Register best model in MLflow Model Registry
+    7. Save model artifacts to disk
 """
 
-import pandas as pd
-import numpy as np
-import yaml
+import argparse
+import sys
 from pathlib import Path
-import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import json
+
+# Ensure project root is on sys.path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from src.utils.config import load_config
+from src.utils.logger import get_logger
+
+logger = get_logger("scripts.train")
 
 
-def load_config():
-    """Load configuration"""
-    with open('config.yaml', 'r') as f:
-        return yaml.safe_load(f)
-
-
-def load_feature_data(config):
-    """Load feature-engineered data"""
-    features_path = f"{config['data']['features']}/model_ready.csv"
-    
-    if not Path(features_path).exists():
-        print(f"ERROR: Features file not found at {features_path}")
-        print("Please run feature engineering first!")
-        return None
-    
-    df = pd.read_csv(features_path)
-    print(f"Loaded {len(df)} matches with features")
-    return df
-
-
-def prepare_training_data(df, target_col='FTR'):
-    """
-    Prepare features and target for training
-    """
-    # Select feature columns (exclude non-feature columns)
-    exclude_cols = [
-        'Date', 'HomeTeam', 'AwayTeam', 'Season', 'FTR', 'FTHG', 'FTAG',
-        'HTR', 'HTHG', 'HTAG', 'Referee'
-    ]
-    
-    feature_cols = [col for col in df.columns if col not in exclude_cols]
-    
-    # Remove any columns with all NaN
-    feature_cols = [col for col in feature_cols if not df[col].isna().all()]
-    
-    X = df[feature_cols]
-    y = df[target_col]
-    
-    # Handle any remaining missing values
-    X = X.fillna(0)
-    
-    print(f"\nFeatures: {len(feature_cols)}")
-    print(f"Samples: {len(X)}")
-    print(f"Target distribution:")
-    print(y.value_counts())
-    
-    return X, y, feature_cols
-
-
-def train_model(X, y, config):
-    """
-    Train machine learning model
-    """
-    print("\n" + "="*50)
-    print("TRAINING MODEL")
-    print("="*50)
-    
-    # Split data (temporal split - older data for training)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, 
-        test_size=config['model']['test_size'],
-        random_state=config['model']['random_state'],
-        shuffle=False  # Keep temporal order
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="EPL Match Prediction - Model Training Pipeline"
     )
-    
-    print(f"\nTraining set: {len(X_train)} matches")
-    print(f"Test set: {len(X_test)} matches")
-    
-    # Choose algorithm
-    algorithm = config['model']['algorithm']
-    
-    if algorithm == 'xgboost':
-        print("\nTraining XGBoost Classifier...")
-        model = XGBClassifier(**config['model']['params'], random_state=42)
-    elif algorithm == 'random_forest':
-        print("\nTraining Random Forest Classifier...")
-        model = RandomForestClassifier(**config['model']['params'], random_state=42)
-    else:
-        raise ValueError(f"Unknown algorithm: {algorithm}")
-    
-    # Train
-    model.fit(X_train, y_train)
-    
-    # Evaluate
-    train_pred = model.predict(X_train)
-    test_pred = model.predict(X_test)
-    
-    train_acc = accuracy_score(y_train, train_pred)
-    test_acc = accuracy_score(y_test, test_pred)
-    
-    print(f"\n✓ Training complete!")
-    print(f"  Training accuracy: {train_acc:.3f}")
-    print(f"  Test accuracy: {test_acc:.3f}")
-    
-    # Detailed classification report
-    print("\n--- Test Set Performance ---")
-    print(classification_report(y_test, test_pred))
-    
-    # Confusion matrix
-    print("Confusion Matrix:")
-    cm = confusion_matrix(y_test, test_pred)
-    print(cm)
-    
-    # Feature importance
-    if hasattr(model, 'feature_importances_'):
-        feature_importance = pd.DataFrame({
-            'feature': X.columns,
-            'importance': model.feature_importances_
-        }).sort_values('importance', ascending=False)
-        
-        print("\n--- Top 10 Important Features ---")
-        print(feature_importance.head(10))
-    
-    return model, {
-        'train_accuracy': train_acc,
-        'test_accuracy': test_acc,
-        'classification_report': classification_report(y_test, test_pred, output_dict=True)
-    }
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to config.yaml (default: auto-discover)",
+    )
+    parser.add_argument(
+        "--no-mlflow",
+        action="store_true",
+        help="Disable MLflow tracking",
+    )
+    parser.add_argument(
+        "--data-path",
+        type=str,
+        default=None,
+        help="Override path to model_ready.csv",
+    )
+    return parser.parse_args()
 
 
-def save_model(model, feature_cols, metrics, config):
-    """
-    Save trained model and metadata
-    """
-    models_dir = Path(config['data']['models'])
-    models_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save model
-    model_path = models_dir / 'best_model.pkl'
-    joblib.dump(model, model_path)
-    print(f"\n✓ Model saved to {model_path}")
-    
-    # Save feature columns
-    features_path = models_dir / 'feature_columns.json'
-    with open(features_path, 'w') as f:
-        json.dump(feature_cols, f)
-    print(f"✓ Feature columns saved to {features_path}")
-    
-    # Save metrics
-    metrics_path = models_dir / 'metrics.json'
-    with open(metrics_path, 'w') as f:
-        json.dump(metrics, f, indent=2)
-    print(f"✓ Metrics saved to {metrics_path}")
+def main() -> None:
+    """Run the full training pipeline."""
+    args = parse_args()
 
+    print("=" * 60)
+    print("EPL BETTING PREDICTOR - MODEL TRAINING")
+    print("=" * 60)
 
-def main():
-    """Main training pipeline"""
-    print("="*60)
-    print("EPL BETTING APP - MODEL TRAINING")
-    print("="*60)
-    
     # Load config
-    config = load_config()
-    print(f"\nUsing algorithm: {config['model']['algorithm']}")
-    
-    # Load data
-    df = load_feature_data(config)
-    if df is None:
-        return
-    
-    # Prepare data
-    X, y, feature_cols = prepare_training_data(df)
-    
-    # Train model
-    model, metrics = train_model(X, y, config)
-    
-    # Save everything
-    save_model(model, feature_cols, metrics, config)
-    
-    print("\n" + "="*60)
-    print("✓ TRAINING COMPLETE!")
-    print("="*60)
-    print(f"\nTest Accuracy: {metrics['test_accuracy']:.1%}")
-    print("\nYou can now use predict.py to make predictions!")
+    config = load_config(args.config)
+    logger.info(f"Config loaded: test_size={config.model.test_size}")
+
+    # Determine data path
+    data_path = args.data_path or f"{config.data.features}/model_ready.csv"
+    if not Path(data_path).exists():
+        logger.error(f"Features file not found: {data_path}")
+        logger.error("Run the feature engineering pipeline first (notebook 03)")
+        sys.exit(1)
+
+    # Disable MLflow if requested
+    if args.no_mlflow:
+        config.mlflow.enabled = False
+        logger.info("MLflow tracking disabled via --no-mlflow flag")
+
+    # Choose pipeline based on MLflow availability
+    if config.mlflow.enabled:
+        logger.info("Running WITH MLflow tracking")
+        from src.training.mlflow_trainer import MlflowTrainer
+
+        mlflow_trainer = MlflowTrainer(config)
+        trainer = mlflow_trainer.run(data_path)
+
+        print("\n" + "-" * 60)
+        print("MLflow Tracking")
+        print("-" * 60)
+        print(f"  Tracking URI : {config.mlflow.tracking_uri}")
+        print(f"  Experiment   : {config.mlflow.experiment_name}")
+        print(f"  Registry     : {config.mlflow.registry_name}")
+        print("\n  To view the MLflow UI:")
+        print(f"    mlflow ui --backend-store-uri {config.mlflow.tracking_uri}")
+    else:
+        logger.info("Running WITHOUT MLflow tracking")
+        from src.training.trainer import run_pipeline
+
+        trainer = run_pipeline(config)
+
+    # Print summary
+    print("\n" + "=" * 60)
+    print("TRAINING COMPLETE")
+    print("=" * 60)
+    print(f"\n  Best model   : {trainer.best_name}")
+    print(f"  Test accuracy: {trainer.best['test_acc']:.4f} "
+          f"({trainer.best['test_acc']:.1%})")
+    print(f"  Test F1 macro: {trainer.best['test_f1']:.4f}")
+
+    print("\n  All models:")
+    for name, result in sorted(
+        trainer.results.items(),
+        key=lambda x: x[1]["test_acc"],
+        reverse=True,
+    ):
+        marker = " *" if name == trainer.best_name else ""
+        print(
+            f"    {name:25s} acc={result['test_acc']:.4f}  "
+            f"f1={result['test_f1']:.4f}{marker}"
+        )
+
+    print(f"\n  Artifacts saved to: {config.model.models_dir}/")
+    print("  You can now use scripts/predict.py to make predictions!")
 
 
 if __name__ == "__main__":

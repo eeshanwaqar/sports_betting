@@ -1,30 +1,74 @@
 # Docker Compose - Local Development
-# 
-# Usage: docker-compose up
+#
+# Usage:
+#   docker-compose -f infra/docker-compose.yml up          # All services
+#   docker-compose -f infra/docker-compose.yml up api      # API only
+#   docker-compose -f infra/docker-compose.yml up mlflow   # MLflow only
 #
 # Services:
-# - api: FastAPI application (port 8000)
-# - mlflow: MLflow tracking server (port 5000)
-# - postgres: PostgreSQL database (port 5432)
-# - redis: Redis cache (port 6379)
-# - chromadb: Vector database (port 8001)
+#   - api:    FastAPI prediction server (port 8000)
+#   - mlflow: MLflow tracking server  (port 5000)
 
 version: "3.8"
 
 services:
-  # TODO: Implement services
+  # --- MLflow Tracking Server ---
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.20.0
+    container_name: epl-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow/mlflow.db
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    command: >
+      mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri sqlite:///mlflow/mlflow.db
+        --default-artifact-root /mlflow/artifacts
+    restart: unless-stopped
+
+  # --- FastAPI Prediction Server ---
   api:
     build:
-      context: .
-      dockerfile: docker/api.Dockerfile
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: epl-api
     ports:
       - "8000:8000"
-    # depends_on:
-    #   - postgres
-    #   - redis
-    #   - mlflow
+    volumes:
+      - ../models:/app/models:ro
+      - ../data:/app/data:ro
+      - ../config.yaml:/app/config.yaml:ro
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - EPL_API_HOST=0.0.0.0
+      - EPL_API_PORT=8000
+    depends_on:
+      - mlflow
+    restart: unless-stopped
 
-# volumes:
-#   postgres-data:
-#   redis-data:
-#   mlflow-data:
+  # --- Training Runner (one-shot) ---
+  train:
+    build:
+      context: ..
+      dockerfile: infra/docker/training.Dockerfile
+    container_name: epl-train
+    volumes:
+      - ../models:/app/models
+      - ../data:/app/data
+      - ../config.yaml:/app/config.yaml
+      - mlflow-data:/mlflow
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    profiles:
+      - training
+
+volumes:
+  mlflow-data:
+    driver: local

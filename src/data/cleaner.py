@@ -1,119 +1,81 @@
 """
-Data Cleaner - Clean and standardize EPL match data
+Data Cleaner - Clean and standardize EPL match data.
+
+Maps to: notebooks/01_data_loading.ipynb (cleaning cells)
+
+Key operations:
+- Parse dates
+- Filter invalid FTR values (e.g. 'NH')
+- Drop rows with missing essential data
+- Standardize data types
 """
 
 import pandas as pd
 import numpy as np
-from datetime import datetime
+
+from src.utils.logger import get_logger
+from src.utils.constants import VALID_RESULTS, ESSENTIAL_COLUMNS, STAT_COLUMNS
+
+logger = get_logger(__name__)
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Clean and standardize match data
-    
+    Clean and standardize raw match data.
+
+    This mirrors the cleaning logic from notebook 01:
+    1. Parse dates
+    2. Filter valid FTR only (H, D, A)
+    3. Drop rows missing essential columns
+    4. Standardize types
+    5. Fill missing stats with 0
+    6. Sort chronologically
+
     Args:
-        df: Raw match DataFrame
-        
+        df: Raw combined DataFrame from loader.
+
     Returns:
-        Cleaned DataFrame
+        Cleaned, sorted DataFrame.
     """
-    print("Cleaning data...")
+    logger.info(f"Cleaning {len(df)} raw matches...")
     df = df.copy()
-    
-    # 1. Convert date column to datetime
-    df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%y', errors='coerce')
-    
-    # 2. Handle missing values in key columns
-    # Keep only rows with essential data
-    essential_cols = ['Date', 'HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'FTR']
-    df = df.dropna(subset=essential_cols)
-    
-    # 3. Standardize team names (remove extra spaces)
-    df['HomeTeam'] = df['HomeTeam'].str.strip()
-    df['AwayTeam'] = df['AwayTeam'].str.strip()
-    
-    # 4. Fix data types
-    df['FTHG'] = df['FTHG'].astype(int)  # Full Time Home Goals
-    df['FTAG'] = df['FTAG'].astype(int)  # Full Time Away Goals
-    
-    # 5. Fill missing statistics with 0
-    stat_columns = ['HS', 'AS', 'HST', 'AST', 'HC', 'AC', 'HF', 'AF', 'HY', 'AY', 'HR', 'AR']
-    for col in stat_columns:
+
+    # 1. Parse dates (handles both DD/MM/YY and DD/MM/YYYY formats)
+    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
+
+    # 2. Filter valid match results only (removes 'NH' and other anomalies)
+    valid_ftr = df["FTR"].isin(VALID_RESULTS)
+    removed_ftr = (~valid_ftr).sum()
+    if removed_ftr > 0:
+        logger.warning(f"Removed {removed_ftr} rows with invalid FTR values")
+    df = df[valid_ftr]
+
+    # 3. Drop rows missing essential data
+    before = len(df)
+    df = df.dropna(subset=ESSENTIAL_COLUMNS)
+    dropped = before - len(df)
+    if dropped > 0:
+        logger.info(f"Dropped {dropped} rows with missing essential data")
+
+    # 4. Standardize team names
+    df["HomeTeam"] = df["HomeTeam"].str.strip()
+    df["AwayTeam"] = df["AwayTeam"].str.strip()
+
+    # 5. Fix numeric types
+    df["FTHG"] = df["FTHG"].astype(int)
+    df["FTAG"] = df["FTAG"].astype(int)
+
+    # 6. Fill missing statistics with 0
+    for col in STAT_COLUMNS:
         if col in df.columns:
             df[col] = df[col].fillna(0).astype(int)
-    
-    # 6. Sort by date
-    df = df.sort_values('Date').reset_index(drop=True)
-    
-    # 7. Add additional useful columns
-    df['TotalGoals'] = df['FTHG'] + df['FTAG']
-    df['GoalDifference'] = df['FTHG'] - df['FTAG']
-    df['Year'] = df['Date'].dt.year
-    df['Month'] = df['Date'].dt.month
-    df['DayOfWeek'] = df['Date'].dt.dayofweek
-    
-    print(f"✓ Cleaned {len(df)} matches")
-    print(f"  Date range: {df['Date'].min()} to {df['Date'].max()}")
-    print(f"  Unique teams: {df['HomeTeam'].nunique()}")
-    print(f"  Columns: {len(df.columns)}")
-    
+
+    # 7. Sort chronologically
+    df = df.sort_values("Date").reset_index(drop=True)
+
+    logger.info(
+        f"Cleaning complete: {len(df)} matches, "
+        f"{df['Date'].min().date()} to {df['Date'].max().date()}, "
+        f"{df['HomeTeam'].nunique()} teams"
+    )
     return df
-
-
-def get_data_summary(df: pd.DataFrame):
-    """
-    Print summary statistics of the dataset
-    """
-    print("\n" + "="*50)
-    print("DATA SUMMARY")
-    print("="*50)
-    
-    print(f"\nTotal matches: {len(df)}")
-    print(f"Date range: {df['Date'].min()} to {df['Date'].max()}")
-    print(f"Seasons: {df['Season'].nunique()}")
-    print(f"Teams: {df['HomeTeam'].nunique()}")
-    
-    print("\n--- Match Results ---")
-    result_counts = df['FTR'].value_counts()
-    print(f"Home wins (H): {result_counts.get('H', 0)} ({result_counts.get('H', 0)/len(df)*100:.1f}%)")
-    print(f"Draws (D):     {result_counts.get('D', 0)} ({result_counts.get('D', 0)/len(df)*100:.1f}%)")
-    print(f"Away wins (A): {result_counts.get('A', 0)} ({result_counts.get('A', 0)/len(df)*100:.1f}%)")
-    
-    print("\n--- Goals Statistics ---")
-    print(f"Average home goals: {df['FTHG'].mean():.2f}")
-    print(f"Average away goals: {df['FTAG'].mean():.2f}")
-    print(f"Average total goals: {df['TotalGoals'].mean():.2f}")
-    
-    print("\n--- Missing Values ---")
-    missing = df.isnull().sum()
-    if missing.sum() > 0:
-        print(missing[missing > 0])
-    else:
-        print("No missing values!")
-    
-    print("="*50 + "\n")
-
-
-if __name__ == "__main__":
-    import yaml
-    
-    # Load config
-    with open('config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-    
-    # Load raw data
-    raw_path = f"{config['data']['raw']}/all_matches.csv"
-    df = pd.read_csv(raw_path)
-    
-    # Clean data
-    df_clean = clean_data(df)
-    
-    # Show summary
-    get_data_summary(df_clean)
-    
-    # Save cleaned data
-    output_path = f"{config['data']['processed']}/clean_matches.csv"
-    from pathlib import Path
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    df_clean.to_csv(output_path, index=False)
-    print(f"Saved cleaned data to {output_path}")

@@ -1,12 +1,213 @@
-<!-- Index Page Template -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EPL Predictor - Home</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPL Predictor</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>EPL Match Odds Predictor</h1>
-    <!-- TODO: Implement prediction interface -->
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="nav-icon">&#9917;</span>
+            <span class="nav-title">EPL Predictor</span>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-link active" data-page="predict">Predict</a>
+            <a href="#" class="nav-link" data-page="teams">Teams</a>
+            <a href="#" class="nav-link" data-page="h2h">Head-to-Head</a>
+            <a href="#" class="nav-link" data-page="model">Model Info</a>
+        </div>
+        <div class="nav-status" id="apiStatus">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting...</span>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container">
+
+        <!-- ==================== PREDICT PAGE ==================== -->
+        <section id="page-predict" class="page active">
+            <div class="page-header">
+                <h1>Match Prediction</h1>
+                <p class="subtitle">Select two teams to predict the match outcome with probabilities and decimal odds</p>
+            </div>
+
+            <div class="predict-form">
+                <div class="team-selector">
+                    <div class="team-select-group">
+                        <label>Home Team</label>
+                        <select id="homeTeam" class="select-input">
+                            <option value="">Select home team...</option>
+                        </select>
+                        <span class="team-badge home-badge">HOME</span>
+                    </div>
+
+                    <div class="vs-divider">
+                        <span>VS</span>
+                    </div>
+
+                    <div class="team-select-group">
+                        <label>Away Team</label>
+                        <select id="awayTeam" class="select-input">
+                            <option value="">Select away team...</option>
+                        </select>
+                        <span class="team-badge away-badge">AWAY</span>
+                    </div>
+                </div>
+
+                <button id="predictBtn" class="btn-predict" disabled>
+                    <span class="btn-text">Get Prediction</span>
+                    <span class="btn-loader hidden"></span>
+                </button>
+            </div>
+
+            <!-- Prediction Results -->
+            <div id="predictionResults" class="results-container hidden">
+                <div class="result-header">
+                    <h2 id="resultMatchup"></h2>
+                    <div class="result-outcome" id="resultOutcome"></div>
+                </div>
+
+                <div class="results-grid">
+                    <!-- Probabilities Card -->
+                    <div class="result-card">
+                        <h3>Probabilities</h3>
+                        <div class="prob-bars">
+                            <div class="prob-row">
+                                <span class="prob-label">Home Win</span>
+                                <div class="prob-bar-container">
+                                    <div class="prob-bar home-bar" id="probBarHome" style="width: 0%"></div>
+                                </div>
+                                <span class="prob-value" id="probHome">-</span>
+                            </div>
+                            <div class="prob-row">
+                                <span class="prob-label">Draw</span>
+                                <div class="prob-bar-container">
+                                    <div class="prob-bar draw-bar" id="probBarDraw" style="width: 0%"></div>
+                                </div>
+                                <span class="prob-value" id="probDraw">-</span>
+                            </div>
+                            <div class="prob-row">
+                                <span class="prob-label">Away Win</span>
+                                <div class="prob-bar-container">
+                                    <div class="prob-bar away-bar" id="probBarAway" style="width: 0%"></div>
+                                </div>
+                                <span class="prob-value" id="probAway">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Odds Card -->
+                    <div class="result-card">
+                        <h3>Decimal Odds</h3>
+                        <div class="odds-grid">
+                            <div class="odds-item">
+                                <span class="odds-label">Home</span>
+                                <span class="odds-value" id="oddsHome">-</span>
+                            </div>
+                            <div class="odds-item">
+                                <span class="odds-label">Draw</span>
+                                <span class="odds-value" id="oddsDraw">-</span>
+                            </div>
+                            <div class="odds-item">
+                                <span class="odds-label">Away</span>
+                                <span class="odds-value" id="oddsAway">-</span>
+                            </div>
+                        </div>
+                        <div class="confidence-meter">
+                            <span class="confidence-label">Confidence</span>
+                            <div class="confidence-bar-container">
+                                <div class="confidence-bar" id="confidenceBar" style="width: 0%"></div>
+                            </div>
+                            <span class="confidence-value" id="confidenceValue">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Display -->
+            <div id="predictError" class="error-banner hidden"></div>
+        </section>
+
+        <!-- ==================== TEAMS PAGE ==================== -->
+        <section id="page-teams" class="page">
+            <div class="page-header">
+                <h1>Teams</h1>
+                <p class="subtitle">Browse all teams in the dataset with their historical records and recent form</p>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" id="teamSearch" class="search-input" placeholder="Search teams...">
+                <span class="search-icon">&#128269;</span>
+            </div>
+
+            <div id="teamsGrid" class="teams-grid">
+                <div class="loading-spinner">Loading teams...</div>
+            </div>
+
+            <!-- Team Detail Modal -->
+            <div id="teamModal" class="modal hidden">
+                <div class="modal-overlay"></div>
+                <div class="modal-content">
+                    <button class="modal-close">&times;</button>
+                    <div id="teamDetail"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== HEAD-TO-HEAD PAGE ==================== -->
+        <section id="page-h2h" class="page">
+            <div class="page-header">
+                <h1>Head-to-Head</h1>
+                <p class="subtitle">Compare two teams' historical meeting record</p>
+            </div>
+
+            <div class="h2h-selector">
+                <div class="h2h-team-group">
+                    <label>Team A</label>
+                    <select id="h2hTeamA" class="select-input">
+                        <option value="">Select team...</option>
+                    </select>
+                </div>
+                <div class="h2h-vs">VS</div>
+                <div class="h2h-team-group">
+                    <label>Team B</label>
+                    <select id="h2hTeamB" class="select-input">
+                        <option value="">Select team...</option>
+                    </select>
+                </div>
+                <button id="h2hBtn" class="btn-secondary" disabled>Compare</button>
+            </div>
+
+            <div id="h2hResults" class="hidden">
+                <div class="h2h-summary" id="h2hSummary"></div>
+                <div class="h2h-matches" id="h2hMatches"></div>
+            </div>
+
+            <div id="h2hError" class="error-banner hidden"></div>
+        </section>
+
+        <!-- ==================== MODEL INFO PAGE ==================== -->
+        <section id="page-model" class="page">
+            <div class="page-header">
+                <h1>Model Information</h1>
+                <p class="subtitle">Performance metrics, model details, and system status</p>
+            </div>
+
+            <div id="modelInfo" class="model-grid">
+                <div class="loading-spinner">Loading model info...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
 </body>
 </html>
