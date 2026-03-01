@@ -96,6 +96,7 @@ resource "aws_ecs_task_definition" "mlflow" {
       "mlflow", "server",
       "--host", "0.0.0.0",
       "--port", "5000",
+      "--workers", "2",
       "--backend-store-uri", "postgresql://${var.db_username}:${random_password.db.result}@${aws_db_instance.mlflow.address}:5432/${var.db_name}",
       "--default-artifact-root", "s3://${aws_s3_bucket.mlflow_artifacts.id}/artifacts",
       "--serve-artifacts",
@@ -171,11 +172,12 @@ resource "aws_ecs_service" "api" {
 # ── MLflow Service ───────────────────────────────────────────
 
 resource "aws_ecs_service" "mlflow" {
-  name            = "${local.name_prefix}-mlflow"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.mlflow.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                               = "${local.name_prefix}-mlflow"
+  cluster                            = aws_ecs_cluster.main.id
+  task_definition                    = aws_ecs_task_definition.mlflow.arn
+  desired_count                      = 1
+  launch_type                        = "FARGATE"
+  health_check_grace_period_seconds  = 120
 
   network_configuration {
     subnets          = aws_subnet.public[*].id

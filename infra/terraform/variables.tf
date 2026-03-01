@@ -84,7 +84,7 @@ variable "mlflow_cpu" {
 variable "mlflow_memory" {
   description = "Memory (MiB) for MLflow task"
   type        = number
-  default     = 512
+  default     = 1024
 }
 
 # ── Tags ─────────────────────────────────────────────────────
