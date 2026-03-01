@@ -4,8 +4,8 @@ Head-to-Head Features - Historical matchup statistics.
 Maps to: notebooks/03_feature_engineering.ipynb (calc_h2h)
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from src.utils.constants import DEFAULT_H2H_WINDOW
 

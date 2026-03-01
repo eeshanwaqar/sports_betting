@@ -5,15 +5,15 @@ This is the main entry point for the API.
 Orchestrates: model loading → feature assembly → inference → odds conversion.
 """
 
-import numpy as np
-import pandas as pd
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
-from src.inference.model_loader import ModelLoader
-from src.inference.feature_assembler import FeatureAssembler
-from src.inference.odds_calculator import probs_to_odds
+import numpy as np
+
 from src.data.loader import load_raw_matches
+from src.inference.feature_assembler import FeatureAssembler
+from src.inference.model_loader import ModelLoader
+from src.inference.odds_calculator import probs_to_odds
 from src.utils.config import AppConfig
 from src.utils.logger import get_logger
 

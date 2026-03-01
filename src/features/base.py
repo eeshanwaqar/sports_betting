@@ -6,11 +6,11 @@ Maps to: notebooks/03_feature_engineering.ipynb (helper functions)
 Provides get_team_matches() and get_prior_matches() used by all calculators.
 """
 
-import pandas as pd
-import numpy as np
 from typing import Optional
 
-from src.utils.constants import HOME_RESULT_MAP, AWAY_RESULT_MAP, POINTS_MAP
+import pandas as pd
+
+from src.utils.constants import AWAY_RESULT_MAP, HOME_RESULT_MAP, POINTS_MAP
 
 
 def get_team_matches(df: pd.DataFrame, team: str) -> pd.DataFrame:

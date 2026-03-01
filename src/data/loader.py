@@ -4,13 +4,14 @@ Data Loader - Load EPL match data from CSV files.
 Maps to: notebooks/01_data_loading.ipynb
 """
 
-import pandas as pd
 from pathlib import Path
 from typing import Optional
 
-from src.utils.logger import get_logger
+import pandas as pd
+
 from src.utils.config import AppConfig
 from src.utils.helpers import ensure_dir
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -11,12 +11,15 @@ EDA Insight: Form diff is a strong predictor (corr ~0.25-0.28).
 All teams perform better at home. Momentum effect confirmed.
 """
 
-import pandas as pd
+
 import numpy as np
-from typing import Optional
+import pandas as pd
 
 from src.features.base import get_prior_matches
-from src.utils.constants import DEFAULT_FORM_WINDOWS, DEFAULT_EXP_DECAY, DEFAULT_VENUE_WINDOW
+from src.utils.constants import (
+    DEFAULT_EXP_DECAY,
+    DEFAULT_VENUE_WINDOW,
+)
 
 
 def calc_form(

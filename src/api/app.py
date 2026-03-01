@@ -11,16 +11,17 @@ Usage:
 """
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.dependencies import get_config
 from src.api.routes import (
     health_router,
+    matches_router,
     predictions_router,
     teams_router,
-    matches_router,
 )
-from src.api.dependencies import get_config
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

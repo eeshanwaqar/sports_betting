@@ -4,8 +4,8 @@ Confidence Scorer - Rate prediction confidence.
 Combines model probability confidence with data freshness indicators.
 """
 
+
 import numpy as np
-from typing import Dict
 
 
 def score_confidence(

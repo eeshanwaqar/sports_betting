@@ -6,8 +6,8 @@ Maps to: notebooks/03_feature_engineering.ipynb (calc_odds_features)
 EDA Insight: Bookmaker ~52% accuracy — strong benchmark and feature source.
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 def calc_odds_features(row: pd.Series) -> dict:

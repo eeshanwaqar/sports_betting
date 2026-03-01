@@ -11,10 +11,9 @@ Key operations:
 """
 
 import pandas as pd
-import numpy as np
 
+from src.utils.constants import ESSENTIAL_COLUMNS, STAT_COLUMNS, VALID_RESULTS
 from src.utils.logger import get_logger
-from src.utils.constants import VALID_RESULTS, ESSENTIAL_COLUMNS, STAT_COLUMNS
 
 logger = get_logger(__name__)
 

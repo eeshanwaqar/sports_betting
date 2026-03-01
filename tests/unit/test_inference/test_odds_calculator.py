@@ -4,17 +4,16 @@ Tests for src.inference.odds_calculator module.
 Covers: prob_to_odds, probs_to_odds, calc_value, is_value_bet.
 """
 
-import pytest
-import math
+
 import numpy as np
+import pytest
 
 from src.inference.odds_calculator import (
-    prob_to_odds,
-    probs_to_odds,
     calc_value,
     is_value_bet,
+    prob_to_odds,
+    probs_to_odds,
 )
-
 
 # ---------------------------------------------------------------------------
 # prob_to_odds

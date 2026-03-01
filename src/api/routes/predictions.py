@@ -7,17 +7,18 @@ Endpoints:
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
 
+from fastapi import APIRouter, HTTPException
+
+from src.api.dependencies import get_predictor
 from src.api.schemas import (
+    BatchPredictionRequest,
+    BatchPredictionResponse,
+    OddsResponse,
     PredictionRequest,
     PredictionResponse,
     ProbabilityResponse,
-    OddsResponse,
-    BatchPredictionRequest,
-    BatchPredictionResponse,
 )
-from src.api.dependencies import get_predictor
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

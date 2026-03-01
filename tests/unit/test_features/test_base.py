@@ -4,10 +4,9 @@ Tests for src.features.base module.
 Covers: get_team_matches, get_prior_matches.
 """
 
-import pytest
 import pandas as pd
 
-from src.features.base import get_team_matches, get_prior_matches
+from src.features.base import get_prior_matches, get_team_matches
 
 
 class TestGetTeamMatches:

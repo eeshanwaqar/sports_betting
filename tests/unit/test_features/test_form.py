@@ -4,12 +4,10 @@ Tests for src.features.form module.
 Covers: calc_form, calc_exp_form, calc_venue_form, calc_streaks.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 
-from src.features.form import calc_form, calc_exp_form, calc_venue_form, calc_streaks
-
+from src.features.form import calc_exp_form, calc_form, calc_streaks, calc_venue_form
 
 # ---------------------------------------------------------------------------
 # calc_form

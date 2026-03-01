@@ -6,12 +6,12 @@ without starting a real server. The MatchPredictor is mocked to
 avoid needing actual model artifacts.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from src.api.app import app
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

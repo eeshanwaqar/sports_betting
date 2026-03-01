@@ -6,10 +6,10 @@ Endpoints:
     GET /teams/{name}    - Team details and record
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from src.api.schemas import TeamResponse, TeamListResponse
 from src.api.dependencies import get_predictor
+from src.api.schemas import TeamListResponse, TeamResponse
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

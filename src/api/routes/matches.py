@@ -7,7 +7,8 @@ Endpoints:
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+
+from fastapi import APIRouter, HTTPException, Query
 
 from src.api.dependencies import get_predictor
 from src.utils.logger import get_logger

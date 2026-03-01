@@ -4,12 +4,10 @@ Tests for src.features.team_stats module.
 Covers: calc_season_stats, calc_shooting_stats.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 
 from src.features.team_stats import calc_season_stats, calc_shooting_stats
-
 
 # ---------------------------------------------------------------------------
 # calc_season_stats

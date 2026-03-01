@@ -6,9 +6,10 @@ Loads: best_model.joblib, scaler.joblib, label_encoder.joblib,
 """
 
 import json
-import joblib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import joblib
 
 from src.utils.logger import get_logger
 

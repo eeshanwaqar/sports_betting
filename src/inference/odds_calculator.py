@@ -4,8 +4,9 @@ Odds Calculator - Convert model probabilities to betting odds.
 Maps to: notebooks/05_evaluation.ipynb (prob_to_odds, value bet analysis)
 """
 
-import numpy as np
 from typing import Dict
+
+import numpy as np
 
 from src.utils.constants import DEFAULT_ODDS_MARGIN
 

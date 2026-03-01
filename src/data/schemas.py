@@ -4,9 +4,10 @@ Data Schemas - Pydantic models for data validation.
 Used for API request/response validation and data contracts.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import date
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class MatchInput(BaseModel):

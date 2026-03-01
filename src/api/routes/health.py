@@ -6,9 +6,10 @@ Endpoints:
     GET /health/ready - Readiness check (verifies model is loadable)
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
+
+from src.api.dependencies import get_predictor
 from src.api.schemas import HealthResponse
-from src.api.dependencies import get_predictor, get_config
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

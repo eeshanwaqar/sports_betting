@@ -5,10 +5,11 @@ This bridges the FeatureBuilder (training-oriented) with live inference.
 It constructs a feature vector for a new match that hasn't been played yet.
 """
 
-import pandas as pd
-import numpy as np
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
+
+import numpy as np
+import pandas as pd
 
 from src.features.builder import FeatureBuilder
 from src.utils.config import FeatureConfig

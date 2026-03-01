@@ -4,12 +4,9 @@ Tests for src.features.elo module.
 Covers: build_elo_ratings, calc_elo_features.
 """
 
-import pytest
-import numpy as np
 import pandas as pd
 
 from src.features.elo import build_elo_ratings, calc_elo_features
-from src.utils.constants import DEFAULT_INITIAL_ELO
 
 
 class TestBuildEloRatings:

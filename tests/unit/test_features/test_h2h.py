@@ -4,7 +4,6 @@ Tests for src.features.h2h module.
 Covers: calc_h2h (head-to-head statistics from home team's perspective).
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 

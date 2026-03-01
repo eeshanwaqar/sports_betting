@@ -10,20 +10,19 @@ Usage:
     best_params = tuner.run(data_path)
 """
 
-import numpy as np
-import pandas as pd
-from typing import Dict, Optional, Any
-from pathlib import Path
+from typing import Any, Dict, Optional
 
+import numpy as np
 import optuna
+import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 
 from src.utils.config import AppConfig
+from src.utils.constants import DEFAULT_RANDOM_STATE, META_COLUMNS, TARGET_COLUMNS
 from src.utils.logger import get_logger
-from src.utils.constants import META_COLUMNS, TARGET_COLUMNS, DEFAULT_RANDOM_STATE
 
 logger = get_logger(__name__)
 

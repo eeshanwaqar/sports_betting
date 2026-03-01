@@ -5,9 +5,10 @@ Placeholder for future Feast/standings integration.
 Currently league position is approximated via season PPG in team_stats.
 """
 
-import pandas as pd
-import numpy as np
 from typing import Optional
+
+import numpy as np
+import pandas as pd
 
 
 def calc_league_position(

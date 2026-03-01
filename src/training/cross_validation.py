@@ -6,9 +6,9 @@ Maps to: notebooks/04_modeling.ipynb (CV section)
 Uses TimeSeriesSplit to respect temporal ordering.
 """
 
-import numpy as np
-from typing import Dict, List, Any
+from typing import Any, Dict
 
+import numpy as np
 from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 
 from src.utils.logger import get_logger

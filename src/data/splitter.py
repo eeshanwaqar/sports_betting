@@ -7,12 +7,12 @@ Key principle: Always split by time to prevent data leakage.
 Train on past, test on future.
 """
 
-import pandas as pd
-import numpy as np
 from typing import Tuple
 
-from src.utils.logger import get_logger
+import pandas as pd
+
 from src.utils.constants import DEFAULT_TEST_SIZE
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

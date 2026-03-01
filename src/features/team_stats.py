@@ -9,10 +9,10 @@ EDA Insight: Season win rate has highest correlation (0.316) with outcome.
 Shot conversion rates vary significantly between teams.
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from src.features.base import get_team_matches, get_prior_matches
+from src.features.base import get_prior_matches, get_team_matches
 from src.utils.helpers import get_season_start
 
 

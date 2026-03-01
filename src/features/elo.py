@@ -8,12 +8,13 @@ Elo captures this dynamically, updating after each match.
 The difference HomeElo - AwayElo is one of the strongest predictors.
 """
 
-import pandas as pd
-import numpy as np
 from typing import Dict, Optional, Tuple
 
+import numpy as np
+import pandas as pd
+
+from src.utils.constants import DEFAULT_ELO_HOME_ADV, DEFAULT_ELO_K, DEFAULT_INITIAL_ELO
 from src.utils.logger import get_logger
-from src.utils.constants import DEFAULT_ELO_K, DEFAULT_ELO_HOME_ADV, DEFAULT_INITIAL_ELO
 
 logger = get_logger(__name__)
 

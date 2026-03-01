@@ -6,9 +6,8 @@ Provides:
 - sample_config: A test-safe AppConfig instance
 """
 
-import pytest
 import pandas as pd
-import numpy as np
+import pytest
 
 
 @pytest.fixture

@@ -6,7 +6,6 @@ These are injected into route handlers via FastAPI's Depends() system.
 """
 
 from functools import lru_cache
-from typing import Optional
 
 from src.utils.config import AppConfig, load_config
 from src.utils.logger import get_logger
