@@ -127,6 +127,14 @@ class MlflowTrainer:
         with mlflow.start_run(run_name="training-pipeline") as parent_run:
             logger.info(f"MLflow parent run: {parent_run.info.run_id}")
 
+            # --- Tag with git commit SHA for lineage ---
+            import os
+            git_sha = os.environ.get("GIT_COMMIT_SHA", "")
+            if git_sha:
+                mlflow.set_tag("git.commit", git_sha)
+                mlflow.set_tag("mlflow.source.git.commit", git_sha)
+                logger.info(f"Tagged run with git commit: {git_sha[:8]}")
+
             # --- Log global parameters ---
             self._log_global_params(train_df, test_df, feature_cols)
 

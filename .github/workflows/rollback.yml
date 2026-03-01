@@ -1,0 +1,101 @@
+# Rollback Workflow — Revert to a previous model version
+#
+# Manual trigger with version number. Re-promotes a previous
+# model version as champion and optionally redeploys the API.
+
+name: Rollback Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Model version number to rollback to"
+        required: true
+        type: string
+      redeploy:
+        description: "Redeploy API after rollback"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  rollback:
+    name: Rollback Champion Model
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: pip install mlflow boto3 psycopg2-binary pyyaml
+
+      - name: Rollback to version ${{ inputs.version }}
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          python -c "
+          from src.training.model_registry import ModelRegistry
+          from src.utils.config import load_config
+
+          config = load_config()
+          registry = ModelRegistry(config)
+          version = ${{ inputs.version }}
+
+          # Verify version exists
+          metrics = registry.get_version_metrics(version)
+          acc = metrics.get('best_test_accuracy', metrics.get('test_accuracy', 'N/A'))
+          print(f'Rolling back to version {version} (accuracy: {acc})')
+
+          registry.promote_to_champion(
+              version,
+              description='Rollback via GitHub Actions (run ${{ github.run_id }})'
+          )
+          print(f'Version {version} is now champion')
+          "
+
+  redeploy:
+    name: Redeploy API
+    needs: rollback
+    if: inputs.redeploy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Force ECS redeployment
+        run: |
+          aws ecs update-service \
+            --cluster epl-predictor-prod-cluster \
+            --service epl-predictor-prod-api \
+            --force-new-deployment \
+            --region us-east-1
+          echo "Redeployment triggered — new tasks will pull fresh model"

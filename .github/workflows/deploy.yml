@@ -1,17 +1,91 @@
-# Deploy Workflow
+# Deploy Workflow — Deploy to ECS Fargate
 #
-# Deploys to production
+# Manual trigger with environment and image tag selection.
+# Rolling deployment with health check verification.
 
 name: Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - prod
+          - staging
+      image_tag:
+        description: "Docker image tag to deploy (default: latest)"
+        required: false
+        default: "latest"
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: epl-predictor-prod-cluster
 
 jobs:
   deploy:
+    name: Deploy to ECS
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
-      
-      # TODO: Implement deployment steps
-      # - name: Deploy to production
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition epl-predictor-${{ inputs.environment }}-api \
+            --query 'taskDefinition' \
+            --output json > task-definition.json
+
+      - name: Update image in task definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: api
+          image: ${{ steps.login-ecr.outputs.registry }}/epl-predictor/api:${{ inputs.image_tag }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: epl-predictor-${{ inputs.environment }}-api
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes: 5
+
+      - name: Verify deployment
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names epl-predictor-${{ inputs.environment }}-alb \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "Checking health at http://$ALB_DNS/health"
+          for i in {1..5}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$ALB_DNS/health" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check failed after 5 attempts"
+          exit 1
