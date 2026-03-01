@@ -5,7 +5,7 @@
  * Communicates with the FastAPI backend via fetch().
  */
 
-const API_BASE = "http://localhost:8000";  // FastAPI backend
+const API_BASE = window.EPL_API_BASE || "http://localhost:8000";  // injected by deploy workflow; falls back to localhost for dev
 
 // ============================================================
 // State
@@ -439,19 +439,19 @@ function renderModelInfo(health, recent) {
             <h3>Quick Links</h3>
             <div class="info-stat-row">
                 <span class="info-stat-label">API Documentation</span>
-                <a href="/docs" target="_blank" class="info-stat-value" style="color:var(--accent-blue-hover);text-decoration:none">
+                <a href="${API_BASE}/docs" target="_blank" class="info-stat-value" style="color:var(--accent-blue-hover);text-decoration:none">
                     /docs
                 </a>
             </div>
             <div class="info-stat-row">
                 <span class="info-stat-label">ReDoc</span>
-                <a href="/redoc" target="_blank" class="info-stat-value" style="color:var(--accent-blue-hover);text-decoration:none">
+                <a href="${API_BASE}/redoc" target="_blank" class="info-stat-value" style="color:var(--accent-blue-hover);text-decoration:none">
                     /redoc
                 </a>
             </div>
             <div class="info-stat-row">
                 <span class="info-stat-label">Health Check</span>
-                <a href="/health/ready" target="_blank" class="info-stat-value" style="color:var(--accent-blue-hover);text-decoration:none">
+                <a href="${API_BASE}/health/ready" target="_blank" class="info-stat-value" style="color:var(--accent-blue-hover);text-decoration:none">
                     /health/ready
                 </a>
             </div>

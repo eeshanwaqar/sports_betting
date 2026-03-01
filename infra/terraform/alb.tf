@@ -41,8 +41,10 @@ resource "aws_lb_target_group" "mlflow" {
   vpc_id      = aws_vpc.main.id
 
   health_check {
-    # MLflow v2 exposes /mlflow/health (lightweight ping) when --static-prefix /mlflow is set
-    path                = "/mlflow/health"
+    # /health is registered directly on the Flask app (not the blueprint),
+    # so it is NOT affected by --static-prefix /mlflow.
+    # The ALB health check hits port 5000 directly, bypassing routing rules.
+    path                = "/health"
     healthy_threshold   = 2
     unhealthy_threshold = 3
     timeout             = 10

@@ -73,10 +73,12 @@ jobs:
           wait-for-minutes: 5
 
       - name: Verify deployment
+        id: verify
         run: |
           ALB_DNS=$(aws elbv2 describe-load-balancers \
             --names epl-predictor-${{ inputs.environment }}-alb \
             --query 'LoadBalancers[0].DNSName' --output text)
+          echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
           echo "Checking health at http://$ALB_DNS/health"
           for i in {1..5}; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$ALB_DNS/health" || true)
@@ -89,3 +91,25 @@ jobs:
           done
           echo "Health check failed after 5 attempts"
           exit 1
+
+      - name: Deploy frontend to S3
+        if: inputs.environment == 'prod'
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="epl-predictor-frontend-${ACCOUNT_ID}"
+          API_URL="http://${{ steps.verify.outputs.alb_dns }}"
+
+          # Inject the live API URL so the JS knows where to call
+          echo "window.EPL_API_BASE = \"${API_URL}\";" > web/static/js/config.js
+
+          # index.html → bucket root (never cached so users always get latest)
+          aws s3 sync web/templates/ s3://${BUCKET}/ \
+            --exclude "*" --include "index.html" --delete \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+          # static assets → static/ prefix (long cache — safe, files change on every deploy)
+          aws s3 sync web/static/ s3://${BUCKET}/static/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable"
+
+          echo "Frontend live at: http://${BUCKET}.s3-website-us-east-1.amazonaws.com"

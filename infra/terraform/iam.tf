@@ -160,6 +160,20 @@ resource "aws_iam_role_policy" "github_actions" {
           aws_iam_role.ecs_task.arn,
         ]
       },
+      {
+        Sid    = "FrontendS3Sync"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+        ]
+        Resource = [
+          aws_s3_bucket.frontend.arn,
+          "${aws_s3_bucket.frontend.arn}/*",
+        ]
+      },
     ]
   })
 }

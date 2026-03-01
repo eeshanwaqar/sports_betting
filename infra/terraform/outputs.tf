@@ -52,3 +52,8 @@ output "github_actions_role_arn" {
   description = "IAM role ARN for GitHub Actions OIDC"
   value       = aws_iam_role.github_actions.arn
 }
+
+output "frontend_url" {
+  description = "S3 static website endpoint (HTTP only)"
+  value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
+}
