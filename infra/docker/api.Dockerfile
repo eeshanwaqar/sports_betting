@@ -25,6 +25,12 @@ COPY scripts/run_api.py scripts/
 # Copy web frontend
 COPY web/ web/
 
+# Copy trained model artifacts (needed by ModelLoader)
+COPY models/ models/
+
+# Copy historical match data (needed by FeatureAssembler at inference time)
+COPY data/raw/matches.csv data/raw/
+
 # Expose API port
 EXPOSE 8000
 

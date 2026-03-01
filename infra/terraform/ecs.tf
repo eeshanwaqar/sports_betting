@@ -84,7 +84,7 @@ resource "aws_ecs_task_definition" "mlflow" {
 
   container_definitions = jsonencode([{
     name      = "mlflow"
-    image     = "ghcr.io/mlflow/mlflow:v2.20.0"
+    image     = "${aws_ecr_repository.mlflow.repository_url}:latest"
     essential = true
 
     portMappings = [{
@@ -99,6 +99,7 @@ resource "aws_ecs_task_definition" "mlflow" {
       "--backend-store-uri", "postgresql://${var.db_username}:${random_password.db.result}@${aws_db_instance.mlflow.address}:5432/${var.db_name}",
       "--default-artifact-root", "s3://${aws_s3_bucket.mlflow_artifacts.id}/artifacts",
       "--serve-artifacts",
+      "--static-prefix", "/mlflow",
     ]
 
     logConfiguration = {
