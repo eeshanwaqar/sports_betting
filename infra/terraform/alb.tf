@@ -41,11 +41,11 @@ resource "aws_lb_target_group" "mlflow" {
   vpc_id      = aws_vpc.main.id
 
   health_check {
-    # MLflow has no /health — use the experiments list API as a liveness probe
-    path                = "/mlflow/api/2.0/mlflow/experiments/list"
+    # MLflow v2 exposes /mlflow/health (lightweight ping) when --static-prefix /mlflow is set
+    path                = "/mlflow/health"
     healthy_threshold   = 2
     unhealthy_threshold = 3
-    timeout             = 5
+    timeout             = 10
     interval            = 30
     matcher             = "200"
   }
