@@ -92,11 +92,15 @@ resource "aws_ecs_task_definition" "mlflow" {
       protocol      = "tcp"
     }]
 
+    environment = [
+      # Limit gunicorn to 2 workers so the container stays within 2048 MB
+      { name = "GUNICORN_CMD_ARGS", value = "--workers=2 --timeout=120" },
+    ]
+
     command = [
       "mlflow", "server",
       "--host", "0.0.0.0",
       "--port", "5000",
-      "--workers", "2",
       "--backend-store-uri", "postgresql://${var.db_username}:${random_password.db.result}@${aws_db_instance.mlflow.address}:5432/${var.db_name}",
       "--default-artifact-root", "s3://${aws_s3_bucket.mlflow_artifacts.id}/artifacts",
       "--serve-artifacts",
