@@ -29,7 +29,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-simple.txt
           pip install -r requirements-dev.txt
-          pip install xgboost mlflow
+          pip install xgboost mlflow optuna
 
       - name: Lint with ruff
         run: ruff check src/ tests/
@@ -55,7 +55,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-simple.txt
           pip install -r requirements-dev.txt
-          pip install xgboost mlflow
+          pip install xgboost mlflow optuna
 
       - name: Run tests with coverage
         run: |

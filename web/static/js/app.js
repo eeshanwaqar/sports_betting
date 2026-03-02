@@ -457,7 +457,9 @@ function renderModelInfo(health, recent) {
             </div>
             <div class="info-stat-row">
                 <span class="info-stat-label">MLflow UI</span>
-                <span class="info-stat-value" style="color:var(--text-muted)">localhost:5000</span>
+                <a href="${API_BASE}/mlflow" target="_blank" class="info-stat-value" style="color:var(--accent-blue-hover);text-decoration:none">
+                    /mlflow
+                </a>
             </div>
         </div>
 
