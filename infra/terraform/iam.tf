@@ -174,6 +174,20 @@ resource "aws_iam_role_policy" "github_actions" {
           "${aws_s3_bucket.frontend.arn}/*",
         ]
       },
+      {
+        Sid    = "MLflowArtifactsS3"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+        ]
+        Resource = [
+          aws_s3_bucket.mlflow_artifacts.arn,
+          "${aws_s3_bucket.mlflow_artifacts.arn}/*",
+        ]
+      },
     ]
   })
 }
