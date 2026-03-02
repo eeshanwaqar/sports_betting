@@ -54,7 +54,7 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements-simple.txt
           pip install -r requirements-dev.txt
-          pip install xgboost mlflow boto3 psycopg2-binary
+          pip install xgboost mlflow boto3 psycopg2-binary optuna
 
       - name: Run training pipeline
         env:
@@ -149,7 +149,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Install dependencies
-        run: pip install mlflow boto3 psycopg2-binary pyyaml
+        run: pip install mlflow boto3 psycopg2-binary pyyaml optuna
 
       - name: Promote to champion
         env:
