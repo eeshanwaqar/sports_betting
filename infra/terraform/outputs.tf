@@ -13,8 +13,13 @@ output "api_url" {
 }
 
 output "mlflow_url" {
-  description = "MLflow UI URL"
+  description = "MLflow UI URL (browser access)"
   value       = "http://${aws_lb.main.dns_name}/mlflow"
+}
+
+output "mlflow_tracking_uri" {
+  description = "MLflow tracking URI for API clients (use this for MLFLOW_TRACKING_URI)"
+  value       = "http://${aws_lb.main.dns_name}"
 }
 
 output "ecr_api_url" {
