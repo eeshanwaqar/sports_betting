@@ -168,3 +168,13 @@ jobs:
           )
           print(f'Version {version} promoted to champion')
           "
+
+      - name: Redeploy API to pick up new champion model
+        run: |
+          aws ecs update-service \
+            --cluster epl-predictor-prod-cluster \
+            --service epl-predictor-prod-api \
+            --force-new-deployment \
+            --query 'service.serviceName' \
+            --output text
+          echo "ECS API service redeployment triggered — new tasks will download champion model on startup"
