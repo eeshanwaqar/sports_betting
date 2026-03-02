@@ -1,0 +1,74 @@
+# Docker Compose - Local Development
+#
+# Usage:
+#   docker-compose -f infra/docker-compose.yml up          # All services
+#   docker-compose -f infra/docker-compose.yml up api      # API only
+#   docker-compose -f infra/docker-compose.yml up mlflow   # MLflow only
+#
+# Services:
+#   - api:    FastAPI prediction server (port 8000)
+#   - mlflow: MLflow tracking server  (port 5000)
+
+version: "3.8"
+
+services:
+  # --- MLflow Tracking Server ---
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.20.0
+    container_name: epl-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow/mlflow.db
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    command: >
+      mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri sqlite:///mlflow/mlflow.db
+        --default-artifact-root /mlflow/artifacts
+    restart: unless-stopped
+
+  # --- FastAPI Prediction Server ---
+  api:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: epl-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../models:/app/models:ro
+      - ../data:/app/data:ro
+      - ../config.yaml:/app/config.yaml:ro
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - EPL_API_HOST=0.0.0.0
+      - EPL_API_PORT=8000
+    depends_on:
+      - mlflow
+    restart: unless-stopped
+
+  # --- Training Runner (one-shot) ---
+  train:
+    build:
+      context: ..
+      dockerfile: infra/docker/training.Dockerfile
+    container_name: epl-train
+    volumes:
+      - ../models:/app/models
+      - ../data:/app/data
+      - ../config.yaml:/app/config.yaml
+      - mlflow-data:/mlflow
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    profiles:
+      - training
+
+volumes:
+  mlflow-data:
+    driver: local

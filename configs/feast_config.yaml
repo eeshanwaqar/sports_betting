@@ -1,0 +1,14 @@
+# Feast Feature Store Configuration
+
+project: epl_predictor
+
+registry: data/registry.db
+
+provider: local
+
+online_store:
+  type: redis
+  connection_string: "localhost:6379"
+
+offline_store:
+  type: file

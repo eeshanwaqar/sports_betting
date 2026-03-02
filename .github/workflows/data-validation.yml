@@ -1,0 +1,130 @@
+# Data Validation Workflow — Schema and quality checks
+#
+# Runs on manual dispatch, weekly schedule, and data file changes.
+# Uses pure pandas (no Great Expectations dependency).
+
+name: Data Validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1" # Every Monday at 5 AM UTC
+  push:
+    paths:
+      - "data/**"
+      - "src/data/**"
+
+jobs:
+  validate:
+    name: Validate Data Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install pandas numpy pyyaml
+
+      - name: Validate data schema and quality
+        run: |
+          python -c "
+          import pandas as pd
+          import sys
+
+          print('=== Data Validation Report ===')
+          errors = []
+
+          # Check model_ready.csv
+          try:
+              df = pd.read_csv('data/features/model_ready.csv', parse_dates=['date'])
+              print(f'model_ready.csv: {len(df)} rows, {len(df.columns)} columns')
+
+              # Required columns
+              required = ['date', 'home_team', 'away_team', 'target']
+              missing = [c for c in required if c not in df.columns]
+              if missing:
+                  errors.append(f'Missing required columns: {missing}')
+
+              # Target distribution
+              target_dist = df['target'].value_counts(normalize=True)
+              print(f'Target distribution:\n{target_dist}')
+              for label in ['H', 'D', 'A']:
+                  if label not in target_dist.index:
+                      errors.append(f'Missing target class: {label}')
+                  elif target_dist[label] < 0.1:
+                      errors.append(f'Target class {label} severely underrepresented: {target_dist[label]:.1%}')
+
+              # Null check on features
+              meta = ['match_id', 'date', 'home_team', 'away_team', 'season', 'target', 'home_goals', 'away_goals']
+              feature_cols = [c for c in df.columns if c not in meta]
+              null_pct = df[feature_cols].isnull().mean()
+              high_null = null_pct[null_pct > 0.5]
+              if len(high_null) > 0:
+                  errors.append(f'{len(high_null)} features have >50% nulls: {list(high_null.index[:5])}')
+
+              # Date range
+              print(f'Date range: {df[\"date\"].min()} to {df[\"date\"].max()}')
+
+              # Duplicates
+              dupes = df.duplicated(subset=['date', 'home_team', 'away_team']).sum()
+              if dupes > 0:
+                  errors.append(f'{dupes} duplicate matches found')
+
+              print(f'Features with >50% nulls: {len(high_null)}')
+              print(f'Duplicates: {dupes}')
+
+          except FileNotFoundError:
+              errors.append('model_ready.csv not found')
+          except Exception as e:
+              errors.append(f'Error reading data: {e}')
+
+          # Check team_stats.csv
+          try:
+              stats = pd.read_csv('data/processed/team_stats.csv')
+              print(f'team_stats.csv: {len(stats)} rows')
+          except FileNotFoundError:
+              errors.append('team_stats.csv not found')
+
+          # Summary
+          print(f'\n=== {len(errors)} issues found ===')
+          for e in errors:
+              print(f'  ERROR: {e}')
+
+          if errors:
+              sys.exit(1)
+          print('All checks passed!')
+          "
+
+      - name: Report feature distributions
+        if: always()
+        run: |
+          python -c "
+          import pandas as pd
+          import json
+
+          try:
+              df = pd.read_csv('data/features/model_ready.csv')
+              meta = ['match_id', 'date', 'home_team', 'away_team', 'season', 'target', 'home_goals', 'away_goals']
+              features = [c for c in df.columns if c not in meta]
+
+              report = {
+                  'total_rows': len(df),
+                  'total_features': len(features),
+                  'feature_stats': {
+                      col: {
+                          'mean': round(float(df[col].mean()), 4),
+                          'std': round(float(df[col].std()), 4),
+                          'null_pct': round(float(df[col].isnull().mean()), 4),
+                      }
+                      for col in features[:10]
+                  }
+              }
+              print(json.dumps(report, indent=2))
+          except Exception as e:
+              print(f'Could not generate distribution report: {e}')
+          "

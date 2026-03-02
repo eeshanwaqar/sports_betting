@@ -1,0 +1,11 @@
+# Production Configuration Overrides
+
+# Override settings for production environment
+debug: false
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+
+# Database connection from environment variables

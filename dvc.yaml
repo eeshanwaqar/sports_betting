@@ -1,0 +1,20 @@
+# DVC Pipeline Definition
+
+stages:
+  load_data:
+    cmd: python src/data/loader.py
+    deps:
+      - archive/Datasets/
+      - src/data/loader.py
+    outs:
+      - data/raw/all_matches.csv
+
+  clean_data:
+    cmd: python src/data/cleaner.py
+    deps:
+      - data/raw/all_matches.csv
+      - src/data/cleaner.py
+    outs:
+      - data/processed/clean_matches.csv
+
+  # TODO: Add feature engineering and training stages

@@ -1,0 +1,57 @@
+# EPL Betting Odds Predictor - Configuration
+
+# Data Paths
+data:
+  raw: "data/raw"
+  processed: "data/processed"
+  features: "data/features"
+  predictions: "data/predictions"
+
+# Source Data
+source:
+  path: "archive/Datasets"
+  pattern: "*.csv"
+  standings: "EPLStandings.csv"
+
+# Feature Engineering
+features:
+  # Rolling form windows (matches)
+  form_windows: [3, 5, 10]
+
+  # Exponential form decay factor
+  exp_decay: 0.7
+
+  # Venue-specific form window
+  venue_window: 5
+
+  # Head-to-head lookback
+  h2h_window: 10
+
+  # Shooting stats window
+  shooting_window: 10
+
+  # Elo rating system
+  elo:
+    k_factor: 20
+    home_advantage: 100
+    initial_rating: 1500
+
+# Model Settings
+model:
+  algorithm: "gradient_boosting"
+  test_size: 0.2
+  random_state: 42
+  models_dir: "models"
+
+# MLflow Settings
+mlflow:
+  tracking_uri: "sqlite:///mlflow.db"   # SQLite backend (recommended over file store)
+  experiment_name: "epl-match-prediction"
+  registry_name: "epl-predictor"
+  enabled: true
+
+# API Settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true

@@ -1,0 +1,170 @@
+# Train Workflow — Model training, registration, and promotion
+#
+# Runs on manual dispatch or weekly cron. Trains the model,
+# registers it in MLflow, and optionally promotes to champion.
+
+name: Train Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      promote:
+        description: "Automatically promote to champion if better"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+  schedule:
+    - cron: "0 6 * * 0" # Every Sunday at 6 AM UTC
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  train:
+    name: Train & Register Model
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      new_version: ${{ steps.register.outputs.new_version }}
+      new_accuracy: ${{ steps.register.outputs.new_accuracy }}
+      is_better: ${{ steps.register.outputs.is_better }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-simple.txt
+          pip install -r requirements-dev.txt
+          pip install xgboost mlflow boto3 psycopg2-binary
+
+      - name: Run training pipeline
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          GIT_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          python scripts/train.py 2>&1 | tee training_output.txt
+
+      - name: Register model and compare with champion
+        id: register
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          python -c "
+          import os
+          import mlflow
+          from src.training.model_registry import ModelRegistry
+          from src.utils.config import load_config
+
+          config = load_config()
+          registry = ModelRegistry(config)
+          versions = registry.list_versions()
+
+          if not versions:
+              print('No versions registered')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write('new_version=0\nnew_accuracy=0\nis_better=true\n')
+              exit(0)
+
+          new_version = versions[0]['version']
+          new_metrics = registry.get_version_metrics(new_version)
+          new_acc = new_metrics.get('best_test_accuracy', 0)
+          print(f'New model version: {new_version}, accuracy: {new_acc:.4f}')
+
+          # Set as challenger
+          registry.set_challenger(new_version)
+
+          # Compare with champion
+          try:
+              champion_versions = [v for v in versions if 'champion' in v.get('aliases', [])]
+              if champion_versions:
+                  champ_ver = champion_versions[0]['version']
+                  champ_metrics = registry.get_version_metrics(champ_ver)
+                  champ_acc = champ_metrics.get('best_test_accuracy', 0)
+                  print(f'Champion v{champ_ver}: {champ_acc:.4f} vs Challenger v{new_version}: {new_acc:.4f}')
+                  is_better = new_acc > champ_acc
+              else:
+                  print('No champion set yet — new model is better by default')
+                  is_better = True
+          except Exception as e:
+              print(f'No champion to compare: {e}')
+              is_better = True
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'new_version={new_version}\n')
+              f.write(f'new_accuracy={new_acc}\n')
+              f.write(f'is_better={str(is_better).lower()}\n')
+          "
+
+      - name: Upload training artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-results
+          path: |
+            training_output.txt
+            models/model_info.json
+
+  promote:
+    name: Promote Champion
+    needs: train
+    runs-on: ubuntu-latest
+    if: >-
+      needs.train.outputs.is_better == 'true' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.promote == 'true') ||
+       github.event_name == 'schedule')
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install dependencies
+        run: pip install mlflow boto3 psycopg2-binary pyyaml
+
+      - name: Promote to champion
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          python -c "
+          from src.training.model_registry import ModelRegistry
+          from src.utils.config import load_config
+
+          config = load_config()
+          registry = ModelRegistry(config)
+          version = ${{ needs.train.outputs.new_version }}
+          registry.promote_to_champion(
+              version,
+              description='Promoted by GitHub Actions (run ${{ github.run_id }})'
+          )
+          print(f'Version {version} promoted to champion')
+          "
