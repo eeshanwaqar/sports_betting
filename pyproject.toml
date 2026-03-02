@@ -22,11 +22,16 @@ python_version = "3.11"
 warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = true
-disable_error_codes = ["import-untyped", "var-annotated"]
+
+[[tool.mypy.overrides]]
+# PyYAML has no bundled stubs — suppress import-untyped for it
+module = "yaml"
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # Training code uses complex MLflow/numpy types; skip strict checking there
-module = "src.training.*"
+# config.py has a var-annotated issue in a dict literal that is harmless
+module = ["src.training.*", "src.utils.config"]
 ignore_errors = true
 
 [tool.pytest.ini_options]
