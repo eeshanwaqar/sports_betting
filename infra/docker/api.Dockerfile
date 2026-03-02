@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python deps (only what the API needs)
 COPY requirements-simple.txt .
 RUN pip install --no-cache-dir -r requirements-simple.txt && \
-    pip install --no-cache-dir fastapi uvicorn pydantic mlflow
+    pip install --no-cache-dir fastapi uvicorn pydantic mlflow boto3
 
 # Copy source code
 COPY src/ src/
