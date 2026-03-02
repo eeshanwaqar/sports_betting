@@ -79,9 +79,9 @@ jobs:
           versions = registry.list_versions()
 
           if not versions:
-              print('No versions registered')
+              print('No versions registered — skipping promotion')
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write('new_version=0\nnew_accuracy=0\nis_better=true\n')
+                  f.write('new_version=0\nnew_accuracy=0\nis_better=false\n')
               exit(0)
 
           new_version = versions[0]['version']
