@@ -69,7 +69,22 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# Route /mlflow/* to MLflow service
+# Route MLflow REST API calls (client always sends to /api/2.0/mlflow/*)
+resource "aws_lb_listener_rule" "mlflow_api" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 90
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.mlflow.arn
+  }
+
+  condition {
+    path_pattern { values = ["/api/2.0/mlflow/*"] }
+  }
+}
+
+# Route /mlflow/* to MLflow UI (--static-prefix serves UI here)
 resource "aws_lb_listener_rule" "mlflow" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 100

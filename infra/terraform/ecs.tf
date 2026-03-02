@@ -47,7 +47,7 @@ resource "aws_ecs_task_definition" "api" {
     }]
 
     environment = [
-      { name = "MLFLOW_TRACKING_URI", value = "http://${aws_lb.main.dns_name}/mlflow" },
+      { name = "MLFLOW_TRACKING_URI", value = "http://${aws_lb.main.dns_name}" },
       { name = "EPL_API_HOST", value = "0.0.0.0" },
       { name = "EPL_API_PORT", value = "8000" },
     ]
@@ -135,7 +135,7 @@ resource "aws_ecs_task_definition" "training" {
     essential = true
 
     environment = [
-      { name = "MLFLOW_TRACKING_URI", value = "http://${aws_lb.main.dns_name}/mlflow" },
+      { name = "MLFLOW_TRACKING_URI", value = "http://${aws_lb.main.dns_name}" },
     ]
 
     logConfiguration = {
