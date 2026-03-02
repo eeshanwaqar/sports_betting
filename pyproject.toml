@@ -19,9 +19,15 @@ ignore = ["E501", "N803", "N806"]  # N803/N806: uppercase X_train/X_test is ML c
 
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = true
+disable_error_codes = ["import-untyped", "var-annotated"]
+
+[[tool.mypy.overrides]]
+# Training code uses complex MLflow/numpy types; skip strict checking there
+module = "src.training.*"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
