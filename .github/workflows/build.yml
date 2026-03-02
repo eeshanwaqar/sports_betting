@@ -41,6 +41,7 @@ jobs:
           echo "sha_short=$SHA_SHORT" >> $GITHUB_OUTPUT
           echo "api_image=${{ steps.login-ecr.outputs.registry }}/epl-predictor/api" >> $GITHUB_OUTPUT
           echo "training_image=${{ steps.login-ecr.outputs.registry }}/epl-predictor/training" >> $GITHUB_OUTPUT
+          echo "mlflow_image=${{ steps.login-ecr.outputs.registry }}/epl-predictor/mlflow" >> $GITHUB_OUTPUT
 
       - name: Build and push API image
         uses: docker/build-push-action@v5
@@ -63,3 +64,13 @@ jobs:
           tags: |
             ${{ steps.tags.outputs.training_image }}:${{ steps.tags.outputs.sha_short }}
             ${{ steps.tags.outputs.training_image }}:latest
+
+      - name: Build and push MLflow image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/mlflow.Dockerfile
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.mlflow_image }}:${{ steps.tags.outputs.sha_short }}
+            ${{ steps.tags.outputs.mlflow_image }}:latest

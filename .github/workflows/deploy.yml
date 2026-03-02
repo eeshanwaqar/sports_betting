@@ -1,11 +1,16 @@
 # Deploy Workflow — Deploy to ECS Fargate
 #
-# Manual trigger with environment and image tag selection.
-# Rolling deployment with health check verification.
+# Triggers automatically after Build & Push succeeds on main (full CD pipeline).
+# Can also be triggered manually with environment and image tag selection.
+# Rolling deployment with health check verification and S3 frontend sync.
 
 name: Deploy
 
 on:
+  workflow_run:
+    workflows: ["Build & Push"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -30,13 +35,22 @@ jobs:
   deploy:
     name: Deploy to ECS
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    # For workflow_run: only proceed if the build actually succeeded
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
+    # inputs.environment is null when triggered by workflow_run — default to 'prod'
+    environment: ${{ inputs.environment || 'prod' }}
     permissions:
       id-token: write
       contents: read
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # For workflow_run, check out the commit that was just built
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -48,10 +62,19 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Resolve deploy target
+        id: target
+        run: |
+          ENV="${{ inputs.environment || 'prod' }}"
+          TAG="${{ inputs.image_tag || 'latest' }}"
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "image_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Deploying image tag '${TAG}' to environment '${ENV}'"
+
       - name: Get current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition epl-predictor-${{ inputs.environment }}-api \
+            --task-definition epl-predictor-${{ steps.target.outputs.environment }}-api \
             --query 'taskDefinition' \
             --output json > task-definition.json
 
@@ -61,13 +84,13 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: api
-          image: ${{ steps.login-ecr.outputs.registry }}/epl-predictor/api:${{ inputs.image_tag }}
+          image: ${{ steps.login-ecr.outputs.registry }}/epl-predictor/api:${{ steps.target.outputs.image_tag }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render.outputs.task-definition }}
-          service: epl-predictor-${{ inputs.environment }}-api
+          service: epl-predictor-${{ steps.target.outputs.environment }}-api
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
           wait-for-minutes: 5
@@ -76,7 +99,7 @@ jobs:
         id: verify
         run: |
           ALB_DNS=$(aws elbv2 describe-load-balancers \
-            --names epl-predictor-${{ inputs.environment }}-alb \
+            --names epl-predictor-${{ steps.target.outputs.environment }}-alb \
             --query 'LoadBalancers[0].DNSName' --output text)
           echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
           echo "Checking health at http://$ALB_DNS/health"
@@ -93,7 +116,7 @@ jobs:
           exit 1
 
       - name: Deploy frontend to S3
-        if: inputs.environment == 'prod'
+        if: steps.target.outputs.environment == 'prod'
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           BUCKET="epl-predictor-frontend-${ACCOUNT_ID}"
