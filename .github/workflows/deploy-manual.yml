@@ -1,0 +1,101 @@
+# Manual Deploy — Force-redeploy API + Frontend to ECS
+#
+# Use this for targeted redeployment without retraining.
+# The unified pipeline (pipeline.yml) handles automated deployments on push to main.
+#
+# Uses force-new-deployment to avoid Terraform state drift.
+
+name: Deploy (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - prod
+          - staging
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: epl-predictor-prod-cluster
+
+jobs:
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force API redeployment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service epl-predictor-${{ inputs.environment }}-api \
+            --force-new-deployment \
+            --query 'service.serviceName' \
+            --output text
+          echo "API redeployment triggered — ECS will pull :latest image"
+
+      - name: Wait for API service stability
+        run: |
+          echo "Waiting for API ECS service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services epl-predictor-${{ inputs.environment }}-api
+          echo "API ECS service is stable"
+
+      - name: Verify deployment
+        id: verify
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names epl-predictor-${{ inputs.environment }}-alb \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
+
+          echo "Checking health at http://$ALB_DNS/health"
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://$ALB_DNS/health" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i/10: got HTTP $STATUS, retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check failed after 10 attempts"
+          exit 1
+
+      - name: Deploy frontend to S3
+        if: inputs.environment == 'prod'
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="epl-predictor-frontend-${ACCOUNT_ID}"
+          API_URL="http://${{ steps.verify.outputs.alb_dns }}"
+
+          echo "window.EPL_API_BASE = \"${API_URL}\";" > web/static/js/config.js
+
+          aws s3 sync web/templates/ s3://${BUCKET}/ \
+            --exclude "*" --include "index.html" --delete \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+          aws s3 sync web/static/ s3://${BUCKET}/static/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable"
+
+          echo "Frontend deployed to http://${BUCKET}.s3-website-us-east-1.amazonaws.com"

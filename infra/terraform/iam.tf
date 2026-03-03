@@ -148,6 +148,7 @@ resource "aws_iam_role_policy" "github_actions" {
         Action = [
           "elasticloadbalancing:DescribeLoadBalancers",
           "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetHealth",
         ]
         Resource = "*"
       },

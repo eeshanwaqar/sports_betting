@@ -1,0 +1,422 @@
+# Unified Pipeline — CI → Build → Deploy MLflow → Train → Deploy API → Frontend
+#
+# Single pipeline that handles the full dependency chain:
+# 1. Lint & test
+# 2. Build all Docker images
+# 3. Deploy MLflow and wait for it to be healthy
+# 4. Train model and promote champion
+# 5. Deploy API (after champion exists)
+# 6. Sync frontend to S3
+#
+# Uses force-new-deployment instead of task-def mutation to avoid Terraform drift.
+
+name: Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_training:
+        description: "Skip model training (deploy existing champion)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: epl-predictor-prod-cluster
+
+jobs:
+  # ── Job 1: Lint & Test ─────────────────────────────────────
+  ci:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-simple.txt
+          pip install -r requirements-dev.txt
+          pip install xgboost mlflow==2.20.0 optuna
+
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+
+      - name: Type check with mypy
+        run: mypy src/ --ignore-missing-imports
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short --cov=src --cov-report=xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+        if: always()
+
+  # ── Job 2: Build & Push Docker Images ──────────────────────
+  build:
+    name: Build Docker Images
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      image_tag: ${{ steps.tags.outputs.sha_short }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tags
+        id: tags
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          echo "sha_short=$SHA_SHORT" >> $GITHUB_OUTPUT
+          echo "api_image=${{ steps.login-ecr.outputs.registry }}/epl-predictor/api" >> $GITHUB_OUTPUT
+          echo "training_image=${{ steps.login-ecr.outputs.registry }}/epl-predictor/training" >> $GITHUB_OUTPUT
+          echo "mlflow_image=${{ steps.login-ecr.outputs.registry }}/epl-predictor/mlflow" >> $GITHUB_OUTPUT
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/api.Dockerfile
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.api_image }}:${{ steps.tags.outputs.sha_short }}
+            ${{ steps.tags.outputs.api_image }}:latest
+
+      - name: Build and push Training image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/training.Dockerfile
+          push: true
+          build-args: |
+            GIT_COMMIT_SHA=${{ github.sha }}
+          tags: |
+            ${{ steps.tags.outputs.training_image }}:${{ steps.tags.outputs.sha_short }}
+            ${{ steps.tags.outputs.training_image }}:latest
+
+      - name: Build and push MLflow image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/mlflow.Dockerfile
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.mlflow_image }}:${{ steps.tags.outputs.sha_short }}
+            ${{ steps.tags.outputs.mlflow_image }}:latest
+
+  # ── Job 3: Deploy MLflow Service ───────────────────────────
+  deploy-mlflow:
+    name: Deploy MLflow
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force MLflow redeployment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service epl-predictor-prod-mlflow \
+            --force-new-deployment \
+            --query 'service.serviceName' \
+            --output text
+          echo "MLflow redeployment triggered — ECS will pull :latest image"
+
+  # ── Job 4: Wait for MLflow to be Healthy ───────────────────
+  wait-mlflow:
+    name: Wait for MLflow
+    needs: deploy-mlflow
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      alb_dns: ${{ steps.health.outputs.alb_dns }}
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Wait for ECS service stability
+        run: |
+          echo "Waiting for MLflow ECS service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services epl-predictor-prod-mlflow
+          echo "MLflow ECS service is stable"
+
+      - name: Verify MLflow target group health
+        id: health
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names epl-predictor-prod-alb \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
+
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names epl-predictor-prod-mlflow \
+            --query 'TargetGroups[0].TargetGroupArn' --output text)
+
+          echo "Waiting for MLflow target group to report healthy..."
+          for i in $(seq 1 20); do
+            HEALTH=$(aws elbv2 describe-target-health \
+              --target-group-arn "$TG_ARN" \
+              --query 'TargetHealthDescriptions[0].TargetHealth.State' \
+              --output text 2>/dev/null || echo "none")
+            if [ "$HEALTH" = "healthy" ]; then
+              echo "MLflow target is healthy (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i/20: target state=$HEALTH, retrying in 15s..."
+            sleep 15
+          done
+          echo "MLflow target group never became healthy"
+          exit 1
+
+  # ── Job 5: Train Model & Promote Champion ──────────────────
+  train:
+    name: Train & Promote
+    needs: wait-mlflow
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.skip_training != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      champion_version: ${{ steps.promote.outputs.champion_version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-simple.txt
+          pip install -r requirements-dev.txt
+          pip install xgboost mlflow==2.20.0 boto3 psycopg2-binary optuna
+
+      - name: Run training pipeline
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          GIT_COMMIT_SHA: ${{ github.sha }}
+        run: python scripts/train.py 2>&1 | tee training_output.txt
+
+      - name: Register and promote model
+        id: promote
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          python -c "
+          import os
+          from src.training.model_registry import ModelRegistry
+          from src.utils.config import load_config
+
+          config = load_config()
+          registry = ModelRegistry(config)
+          versions = registry.list_versions()
+
+          if not versions:
+              print('ERROR: No model versions found after training')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write('champion_version=0\n')
+              exit(1)
+
+          new_version = versions[0]['version']
+          new_metrics = registry.get_version_metrics(new_version)
+          new_acc = new_metrics.get('best_test_accuracy', 0)
+          print(f'New model v{new_version}, accuracy: {new_acc:.4f}')
+
+          # Set as challenger
+          registry.set_challenger(new_version)
+
+          # Compare with champion
+          try:
+              champion_versions = [v for v in versions if 'champion' in v.get('aliases', [])]
+              if champion_versions:
+                  champ_ver = champion_versions[0]['version']
+                  champ_metrics = registry.get_version_metrics(champ_ver)
+                  champ_acc = champ_metrics.get('best_test_accuracy', 0)
+                  is_better = new_acc > champ_acc
+                  if is_better:
+                      print(f'v{new_version} ({new_acc:.4f}) beats champion v{champ_ver} ({champ_acc:.4f})')
+                  else:
+                      print(f'Champion v{champ_ver} ({champ_acc:.4f}) is still better — keeping it')
+                      with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                          f.write(f'champion_version={champ_ver}\n')
+                      exit(0)
+              else:
+                  print('No champion set — promoting first model')
+                  is_better = True
+          except Exception as e:
+              print(f'Error comparing: {e} — promoting new model')
+              is_better = True
+
+          registry.promote_to_champion(
+              new_version,
+              description=f'Promoted by pipeline (run {os.environ.get(\"GITHUB_RUN_ID\", \"local\")})'
+          )
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'champion_version={new_version}\n')
+          print(f'Version {new_version} promoted to champion')
+          "
+
+      - name: Upload training artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: training-results
+          path: |
+            training_output.txt
+            models/model_info.json
+
+  # ── Job 6: Deploy API Service ──────────────────────────────
+  deploy-api:
+    name: Deploy API
+    needs: [build, wait-mlflow, train]
+    if: >-
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      needs.wait-mlflow.result == 'success' &&
+      (needs.train.result == 'success' || needs.train.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      alb_dns: ${{ steps.verify.outputs.alb_dns }}
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force API redeployment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service epl-predictor-prod-api \
+            --force-new-deployment \
+            --query 'service.serviceName' \
+            --output text
+          echo "API redeployment triggered"
+
+      - name: Wait for API service stability
+        run: |
+          echo "Waiting for API ECS service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services epl-predictor-prod-api
+          echo "API ECS service is stable"
+
+      - name: Verify API health
+        id: verify
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names epl-predictor-prod-alb \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
+
+          echo "Checking API health at http://$ALB_DNS/health"
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://$ALB_DNS/health" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "API health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i/10: got HTTP $STATUS, retrying in 15s..."
+            sleep 15
+          done
+          echo "API health check failed after 10 attempts"
+          exit 1
+
+  # ── Job 7: Deploy Frontend to S3 ──────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy frontend to S3
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="epl-predictor-frontend-${ACCOUNT_ID}"
+          API_URL="http://${{ needs.deploy-api.outputs.alb_dns }}"
+
+          echo "window.EPL_API_BASE = \"${API_URL}\";" > web/static/js/config.js
+
+          aws s3 sync web/templates/ s3://${BUCKET}/ \
+            --exclude "*" --include "index.html" --delete \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+          aws s3 sync web/static/ s3://${BUCKET}/static/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable"
+
+          echo "Frontend deployed to http://${BUCKET}.s3-website-us-east-1.amazonaws.com"
