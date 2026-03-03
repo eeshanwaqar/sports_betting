@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python deps (full ML stack)
 COPY requirements-ml.txt .
 RUN pip install --no-cache-dir -r requirements-ml.txt && \
-    pip install --no-cache-dir mlflow
+    pip install --no-cache-dir mlflow==2.20.0
 
 # Copy source code
 COPY src/ src/
