@@ -47,7 +47,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Install dependencies
-        run: pip install mlflow boto3 psycopg2-binary pyyaml
+        run: pip install mlflow==2.20.0 boto3 psycopg2-binary pyyaml
 
       - name: Rollback to version ${{ inputs.version }}
         env:

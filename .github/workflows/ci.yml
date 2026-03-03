@@ -7,7 +7,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
     branches: [main]
 
@@ -29,7 +29,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-simple.txt
           pip install -r requirements-dev.txt
-          pip install xgboost mlflow optuna
+          pip install xgboost mlflow==2.20.0 optuna
 
       - name: Lint with ruff
         run: ruff check src/ tests/
@@ -55,7 +55,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-simple.txt
           pip install -r requirements-dev.txt
-          pip install xgboost mlflow optuna
+          pip install xgboost mlflow==2.20.0 optuna
 
       - name: Run tests with coverage
         run: |
