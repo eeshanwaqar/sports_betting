@@ -1,6 +1,6 @@
 # Manual Train — Model training, registration, and promotion
 #
-# Use for manual retraining or weekly cron. The unified pipeline (pipeline.yml)
+# Use for manual retraining. The unified pipeline (pipeline.yml)
 # handles automated training on push to main.
 
 name: Train Model (Manual)
@@ -16,8 +16,6 @@ on:
         options:
           - "true"
           - "false"
-  schedule:
-    - cron: "0 6 * * 0" # Every Sunday at 6 AM UTC
 
 env:
   AWS_REGION: us-east-1
