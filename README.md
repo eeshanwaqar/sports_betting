@@ -1,6 +1,6 @@
 # EPL Sports Betting Odds Predictor
 
-A **production-grade machine learning system** for predicting English Premier League match outcomes and generating betting odds.
+A production-grade ML system that predicts English Premier League match outcomes and generates fair betting odds.
 
 [![CI](https://github.com/eeshanwaqar/sports_betting/actions/workflows/ci.yml/badge.svg)](https://github.com/eeshanwaqar/sports_betting/actions/workflows/ci.yml)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
@@ -18,19 +18,17 @@ Prediction: Home Win
 Probabilities: H=45% | D=30% | A=25%
 Odds:         H=2.22 | D=3.33 | A=4.00
 Confidence:   78%
-
-"Arsenal are favored due to their strong home form (4W in last 5)
-and Chelsea's injury concerns in midfield..."
 ```
 
 ---
 
 ## Key Features
 
-- **ML Predictions** - XGBoost model trained on 20 years of EPL data (7,600+ matches)
-- **Real-Time News** - Incorporates injuries, transfers, team news via NLP
-- **Explainable AI** - RAG-powered natural language explanations
-- **Production Ready** - Docker, CI/CD, MLflow, monitoring
+- **59 Engineered Features** - Elo ratings, multi-window form, H2H records, shooting stats, venue metrics, and more
+- **4 Calibrated Models** - XGBoost, Random Forest, Gradient Boosting, Logistic Regression with time-series CV
+- **MLflow Integration** - Experiment tracking, model registry, champion/challenger promotion
+- **REST API** - Single/batch predictions, team analytics, head-to-head history
+- **Cloud Ready** - Docker, Terraform (AWS), GitHub Actions CI/CD
 
 ---
 
@@ -38,34 +36,30 @@ and Chelsea's injury concerns in midfield..."
 
 | Category | Technologies |
 |----------|-------------|
-| **ML/MLOps** | XGBoost, Scikit-learn, MLflow, DVC, Feast |
-| **NLP/LLM** | spaCy, LangChain, ChromaDB, Ollama |
-| **Backend** | FastAPI, PostgreSQL, Redis |
-| **DevOps** | Docker, GitHub Actions, Terraform |
-| **Monitoring** | Evidently AI, Great Expectations |
+| **ML/MLOps** | XGBoost, Scikit-learn, MLflow |
+| **Backend** | FastAPI, Pydantic, Uvicorn |
+| **DevOps** | Docker, Docker Compose, GitHub Actions |
+| **Infrastructure** | Terraform, AWS (ECS Fargate, ALB, RDS, S3, ECR, CloudWatch) |
+| **Quality** | pytest, Ruff, MyPy |
 
 ---
 
 ## Project Structure
 
 ```
-EPL-Predictor/
 ├── src/
 │   ├── data/           # Data pipeline (load, clean, validate)
-│   ├── features/       # Feature engineering (form, stats, h2h)
-│   ├── news/           # News collection & NLP processing
-│   ├── training/       # MLflow-integrated model training
-│   ├── inference/      # Prediction pipeline
-│   ├── rag/            # LangChain RAG implementation
-│   ├── realtime/       # Event-driven updates
-│   ├── api/            # FastAPI application
-│   └── monitoring/     # Drift detection & alerting
-├── scripts/            # Executable scripts
+│   ├── features/       # 11 feature engineering modules
+│   ├── training/       # Model training, evaluation, MLflow tracking
+│   ├── inference/      # Prediction, odds calculation, confidence scoring
+│   └── api/            # FastAPI application (routes, schemas, middleware)
 ├── tests/              # Unit, integration, e2e tests
-├── infra/              # Docker & Terraform
-├── configs/            # Configuration files
-├── dashboard/          # Streamlit analytics
-└── docs/               # Documentation
+├── scripts/            # Training, prediction, API launch scripts
+├── infra/
+│   ├── docker/         # Dockerfiles (API, training, MLflow)
+│   ├── terraform/      # AWS infrastructure as code
+│   └── docker-compose.yml
+└── .github/workflows/  # CI, training, data validation pipelines
 ```
 
 ---
@@ -95,10 +89,7 @@ pip install -r requirements.txt
 ### Run Data Pipeline
 
 ```bash
-# Load historical data
 python src/data/loader.py
-
-# Clean and validate
 python src/data/cleaner.py
 ```
 
@@ -133,54 +124,141 @@ docker-compose -f infra/docker-compose.yml up
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/predict` | POST | Match prediction |
-| `/api/v1/chat` | POST | RAG chat interface |
-| `/api/v1/teams` | GET | List all teams |
-| `/api/v1/teams/{name}` | GET | Team details |
-| `/health` | GET | Health check |
+| `/predict` | POST | Single match prediction |
+| `/predict/batch` | POST | Batch predictions (up to 20) |
+| `/teams` | GET | List all available teams |
+| `/teams/{name}` | GET | Team record and recent form |
+| `/matches/recent` | GET | Recent match results |
+| `/matches/head-to-head` | GET | H2H record between two teams |
+| `/health` | GET | Liveness check |
+| `/health/ready` | GET | Readiness check (model loaded) |
+
+---
+
+## Feature Engineering
+
+59 features across 11 modules, all computed using only pre-match data (zero leakage):
+
+| Module | Features |
+|--------|----------|
+| Elo Ratings | Home/away Elo, Elo difference |
+| Betting Odds | Implied probabilities, favourite indicator |
+| Form (3/5-match) | Points, win rate, goal difference |
+| Exponential Form | Decay-weighted recent performance |
+| Venue Stats | Home/away win rate, goals, clean sheets |
+| Season Stats | Win rate, PPG, goals for, clean sheets |
+| Streaks | Win streak, unbeaten streak |
+| Shooting | Shot accuracy, shot conversion |
+| Head-to-Head | H2H win rate, average goals (10-match window) |
+| Differentials | 12 mismatch features (form, attack vs defense, etc.) |
+| Temporal | Weekend flag, month, matchweek |
+
+---
+
+## Deploy to AWS
+
+### Prerequisites
+- AWS CLI configured with credentials
+- Terraform >= 1.5.0
+- Docker
+
+### 1. Bootstrap Terraform State
+
+Create an S3 bucket and DynamoDB table for remote state (one-time):
+
+```bash
+aws s3 mb s3://epl-predictor-terraform-state --region us-east-1
+aws dynamodb create-table \
+  --table-name epl-predictor-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+```
+
+### 2. Provision Infrastructure
+
+```bash
+cd infra/terraform
+terraform init
+terraform plan
+terraform apply
+```
+
+This creates: VPC, ECS Fargate cluster (with Spot), ALB, RDS (PostgreSQL for MLflow), S3 (artifacts), ECR (container registries), CloudWatch (logging), and auto-scaling (1-3 tasks).
+
+### 3. Build and Push Docker Images
+
+```bash
+# Get ECR URLs from Terraform output
+API_REPO=$(terraform output -raw ecr_api_url)
+TRAINING_REPO=$(terraform output -raw ecr_training_url)
+
+# Login to ECR
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $API_REPO
+
+# Build and push API image
+docker build -f infra/docker/api.Dockerfile -t $API_REPO:latest .
+docker push $API_REPO:latest
+
+# Build and push training image
+docker build -f infra/docker/training.Dockerfile -t $TRAINING_REPO:latest .
+docker push $TRAINING_REPO:latest
+```
+
+### 4. Train the Model
+
+Trigger training via GitHub Actions (manual workflow dispatch) or run the ECS training task:
+
+```bash
+aws ecs run-task \
+  --cluster $(terraform output -raw ecs_cluster_name) \
+  --task-definition epl-predictor-prod-training \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[<subnet-id>],securityGroups=[<sg-id>],assignPublicIp=ENABLED}"
+```
+
+### 5. Access the API
+
+```bash
+# Get the API URL
+terraform output api_url
+
+# Test it
+curl http://<alb-dns>/health
+curl -X POST http://<alb-dns>/predict \
+  -H "Content-Type: application/json" \
+  -d '{"home_team": "Arsenal", "away_team": "Chelsea"}'
+```
+
+MLflow UI is available at the `/mlflow` path on the same ALB.
+
+### 6. Tear Down
+
+```bash
+terraform destroy
+```
+
+---
+
+## CI/CD Pipelines
+
+| Workflow | Trigger | What it does |
+|----------|---------|-------------|
+| **ci.yml** | Push to `develop`, PR to `main` | Lint (Ruff), type check (MyPy), test (pytest + coverage) |
+| **train-manual.yml** | Manual dispatch | Trains model on ECS, logs to MLflow, promotes champion if better |
+| **data-validation.yml** | Weekly + manual | Validates data schema, target distribution, nulls, duplicates |
 
 ---
 
 ## Development
 
 ```bash
-# Run linting
-make lint
-
-# Run tests
-make test
-
-# Format code
-make format
-
-# Start all services
-make docker-up
+make lint      # Ruff + MyPy
+make test      # pytest with coverage
+make format    # Auto-format code
+make docker-up # Start all services
 ```
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Project Summary](docs/PROJECT_SUMMARY.md) | Comprehensive project overview |
-| [System Design](docs/architecture/system_design.md) | Architecture documentation |
-| [API Design](docs/architecture/api_design.md) | API specifications |
-| [Setup Guide](docs/guides/setup.md) | Installation instructions |
-| [Development Guide](docs/guides/development.md) | Developer documentation |
-
----
-
-## Skills Demonstrated
-
-This project showcases:
-
-- **Machine Learning** - Feature engineering, model training, evaluation
-- **MLOps** - Experiment tracking, model registry, data versioning
-- **NLP/GenAI** - Entity extraction, sentiment analysis, RAG
-- **Backend** - REST APIs, async programming, caching
-- **DevOps** - Containerization, CI/CD, infrastructure as code
-- **Software Engineering** - Testing, type hints, code quality
 
 ---
 
@@ -189,16 +267,7 @@ This project showcases:
 - **Source:** [Football-Data.co.uk](http://www.football-data.co.uk/)
 - **Coverage:** 20 EPL seasons (2000-2020)
 - **Matches:** 7,600+
-- **Features:** Goals, shots, corners, cards, betting odds
-
----
-
-## Model Performance
-
-| Metric | Value |
-|--------|-------|
-| Baseline (random) | 33% |
-| Target accuracy | 53-57% |
+- **Raw features:** Goals, shots, corners, cards, betting odds
 
 ---
 
@@ -210,6 +279,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Author
 
-**Eeshan Waqar**
-
-- GitHub: [@eeshanwaqar](https://github.com/eeshanwaqar)
+**Eeshan Waqar** - [@eeshanwaqar](https://github.com/eeshanwaqar)
