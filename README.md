@@ -219,20 +219,20 @@ aws ecs run-task \
   --network-configuration "awsvpcConfiguration={subnets=[<subnet-id>],securityGroups=[<sg-id>],assignPublicIp=ENABLED}"
 ```
 
-### 5. Access the Application
+### 5. Access the API
 
 ```bash
-# Get the application URL
+# Get the API URL
 terraform output api_url
 
-# Frontend + API are served from the same URL
+# Test it
 curl http://<alb-dns>/health
 curl -X POST http://<alb-dns>/predict \
   -H "Content-Type: application/json" \
   -d '{"home_team": "Arsenal", "away_team": "Chelsea"}'
 ```
 
-The frontend is served from the same ALB URL. MLflow UI is at the `/mlflow` path.
+MLflow UI is available at the `/mlflow` path on the same ALB.
 
 ### 6. Tear Down
 
@@ -246,9 +246,7 @@ terraform destroy
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| **pipeline.yml** | Push to `main`, manual dispatch | Full pipeline: CI → Build → Deploy MLflow → Train → Deploy API + Frontend |
 | **ci.yml** | Push to `develop`, PR to `main` | Lint (Ruff), type check (MyPy), test (pytest + coverage) |
-| **deploy-manual.yml** | Manual dispatch | Redeploy API + Frontend without retraining |
 | **train-manual.yml** | Manual dispatch | Trains model on ECS, logs to MLflow, promotes champion if better |
 | **data-validation.yml** | Weekly + manual | Validates data schema, target distribution, nulls, duplicates |
 
