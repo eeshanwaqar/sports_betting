@@ -60,12 +60,10 @@ jobs:
           echo "API ECS service is stable"
 
       - name: Verify deployment
-        id: verify
         run: |
           ALB_DNS=$(aws elbv2 describe-load-balancers \
             --names epl-predictor-${{ inputs.environment }}-alb \
             --query 'LoadBalancers[0].DNSName' --output text)
-          echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
 
           echo "Checking health at http://$ALB_DNS/health"
           for i in $(seq 1 10); do
@@ -73,6 +71,7 @@ jobs:
               "http://$ALB_DNS/health" || true)
             if [ "$STATUS" = "200" ]; then
               echo "Health check passed!"
+              echo "Frontend available at http://$ALB_DNS"
               exit 0
             fi
             echo "Attempt $i/10: got HTTP $STATUS, retrying in 15s..."
@@ -80,22 +79,3 @@ jobs:
           done
           echo "Health check failed after 10 attempts"
           exit 1
-
-      - name: Deploy frontend to S3
-        if: inputs.environment == 'prod'
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          BUCKET="epl-predictor-frontend-${ACCOUNT_ID}"
-          API_URL="http://${{ steps.verify.outputs.alb_dns }}"
-
-          echo "window.EPL_API_BASE = \"${API_URL}\";" > web/static/js/config.js
-
-          aws s3 sync web/templates/ s3://${BUCKET}/ \
-            --exclude "*" --include "index.html" --delete \
-            --cache-control "no-cache, no-store, must-revalidate"
-
-          aws s3 sync web/static/ s3://${BUCKET}/static/ \
-            --delete \
-            --cache-control "public, max-age=31536000, immutable"
-
-          echo "Frontend deployed to http://${BUCKET}.s3-website-us-east-1.amazonaws.com"

@@ -1,3 +1,2 @@
-// This file is overwritten by the deploy workflow with the live ALB URL.
-// For local development it falls back to localhost:8000 (see app.js).
-window.EPL_API_BASE = null;
+// No override needed — frontend is served from the same origin as the API.
+// Set window.EPL_API_BASE only if you need to point to a different API server.

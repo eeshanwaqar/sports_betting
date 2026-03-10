@@ -5,7 +5,7 @@
  * Communicates with the FastAPI backend via fetch().
  */
 
-const API_BASE = window.EPL_API_BASE || "http://localhost:8000";  // injected by deploy workflow; falls back to localhost for dev
+const API_BASE = window.EPL_API_BASE || "";  // empty = same origin (frontend served from FastAPI)
 
 // ============================================================
 // State
