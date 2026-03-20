@@ -322,7 +322,7 @@ jobs:
             training_output.txt
             models/model_info.json
 
-  # ── Job 6: Deploy API Service ──────────────────────────────
+  # ── Job 6: Deploy API Service (includes frontend) ─────────
   deploy-api:
     name: Deploy API
     needs: [build, wait-mlflow, train]
@@ -335,8 +335,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    outputs:
-      alb_dns: ${{ steps.verify.outputs.alb_dns }}
 
     steps:
       - name: Configure AWS credentials (OIDC)
@@ -353,7 +351,7 @@ jobs:
             --force-new-deployment \
             --query 'service.serviceName' \
             --output text
-          echo "API redeployment triggered"
+          echo "API redeployment triggered (frontend is bundled in the API image)"
 
       - name: Wait for API service stability
         run: |
@@ -364,12 +362,10 @@ jobs:
           echo "API ECS service is stable"
 
       - name: Verify API health
-        id: verify
         run: |
           ALB_DNS=$(aws elbv2 describe-load-balancers \
             --names epl-predictor-prod-alb \
             --query 'LoadBalancers[0].DNSName' --output text)
-          echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
 
           echo "Checking API health at http://$ALB_DNS/health"
           for i in $(seq 1 10); do
@@ -377,6 +373,7 @@ jobs:
               "http://$ALB_DNS/health" || true)
             if [ "$STATUS" = "200" ]; then
               echo "API health check passed!"
+              echo "Frontend available at http://$ALB_DNS"
               exit 0
             fi
             echo "Attempt $i/10: got HTTP $STATUS, retrying in 15s..."
@@ -384,39 +381,3 @@ jobs:
           done
           echo "API health check failed after 10 attempts"
           exit 1
-
-  # ── Job 7: Deploy Frontend to S3 ──────────────────────────
-  deploy-frontend:
-    name: Deploy Frontend
-    needs: deploy-api
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Deploy frontend to S3
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          BUCKET="epl-predictor-frontend-${ACCOUNT_ID}"
-          API_URL="http://${{ needs.deploy-api.outputs.alb_dns }}"
-
-          echo "window.EPL_API_BASE = \"${API_URL}\";" > web/static/js/config.js
-
-          aws s3 sync web/templates/ s3://${BUCKET}/ \
-            --exclude "*" --include "index.html" --delete \
-            --cache-control "no-cache, no-store, must-revalidate"
-
-          aws s3 sync web/static/ s3://${BUCKET}/static/ \
-            --delete \
-            --cache-control "public, max-age=31536000, immutable"
-
-          echo "Frontend deployed to http://${BUCKET}.s3-website-us-east-1.amazonaws.com"

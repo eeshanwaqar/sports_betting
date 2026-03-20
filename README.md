@@ -105,11 +105,12 @@ python scripts/train.py
 python scripts/predict.py --home "Arsenal" --away "Chelsea"
 ```
 
-### Start API
+### Start API + Frontend
 
 ```bash
 python scripts/run_api.py
-# Access: http://localhost:8000/docs
+# Frontend: http://localhost:8000
+# API Docs: http://localhost:8000/docs
 ```
 
 ### Docker (Full Stack)

@@ -1,8 +1,8 @@
 """
 FastAPI Application - EPL Betting Odds Predictor API.
 
-Creates the FastAPI app, registers routes, and configures middleware.
-The frontend is served separately on port 3000.
+Creates the FastAPI app, registers routes, configures middleware,
+and serves the web frontend from the same origin.
 
 Usage:
     uvicorn src.api.app:app --reload
@@ -17,6 +17,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.api.dependencies import get_config
 from src.api.routes import (
@@ -143,21 +145,21 @@ app.include_router(predictions_router)
 app.include_router(teams_router)
 app.include_router(matches_router)
 
+# --- Serve Web Frontend ---
+# Resolve web/ directory relative to project root
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_WEB_DIR = _PROJECT_ROOT / "web"
+_INDEX_HTML = _WEB_DIR / "templates" / "index.html"
+_STATIC_DIR = _WEB_DIR / "static"
 
-@app.get("/", tags=["Root"])
-async def root():
-    """API root -- basic info and links."""
-    return {
-        "name": "EPL Betting Odds Predictor API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/health",
-        "frontend": "http://localhost:3000",
-        "endpoints": {
-            "predict": "POST /predict",
-            "batch_predict": "POST /predict/batch",
-            "teams": "GET /teams",
-            "matches": "GET /matches/recent",
-            "head_to_head": "GET /matches/head-to-head?team_a=...&team_b=...",
-        },
-    }
+# Mount static assets (CSS, JS) — must come before the catch-all
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/{path:path}", include_in_schema=False)
+async def serve_frontend(path: str):
+    """Catch-all: serve the SPA index.html for any non-API path."""
+    if _INDEX_HTML.exists():
+        return FileResponse(str(_INDEX_HTML))
+    return {"detail": "Frontend not found. Use /docs for the API."}

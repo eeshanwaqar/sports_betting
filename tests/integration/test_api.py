@@ -72,12 +72,10 @@ def client(mock_predictor):
 # ---------------------------------------------------------------------------
 
 class TestRootEndpoint:
-    def test_root_returns_api_info(self, client):
+    def test_root_serves_frontend(self, client):
         response = client.get("/")
         assert response.status_code == 200
-        data = response.json()
-        assert "EPL" in data["name"]
-        assert "endpoints" in data
+        assert "text/html" in response.headers.get("content-type", "")
 
 
 # ---------------------------------------------------------------------------
